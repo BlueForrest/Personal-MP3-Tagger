@@ -1,6 +1,6 @@
 # Personal-MP3-Tagger
-jstal-tagger
-
+jstal-tagger:
+_______________________________________________________________
 Build in python with the help of different (all free) AI-tools.
 
 Runs within a docker container on my ZIMA-OS server.
