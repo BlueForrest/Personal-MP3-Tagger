@@ -1,0 +1,6 @@
+Flask>=3.0,<4
+mutagen>=1.47,<2
+requests>=2.31,<3
+Pillow>=10.4,<13
+gunicorn>=22,<26
+tzdata>=2024.1

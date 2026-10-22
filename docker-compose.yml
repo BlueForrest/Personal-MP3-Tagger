@@ -1,0 +1,37 @@
+# jstal-tagger V2.1 - all settings are in .env (see .env.example)
+services:
+  jstal-tagger:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jstal-tagger
+    restart: unless-stopped
+    ports:
+      - "5080:5080"
+    environment:
+      MUSIC_ROOT: /music
+      BACKUP_ROOT: /backups
+      LOOKUP_USER_AGENT: "${LOOKUP_USER_AGENT:?Set LOOKUP_USER_AGENT in .env with your real contact}"
+      ENABLE_TAG_WRITES: "${ENABLE_TAG_WRITES:-false}"
+      KEEP_BACKUPS: "${KEEP_BACKUPS:-false}"
+      EDIT_MODE_DEFAULT: "${EDIT_MODE_DEFAULT:-true}"
+      YOUTUBE_API_KEY: "${YOUTUBE_API_KEY:-}"
+      YOUTUBE_REGION: "${YOUTUBE_REGION:-BE}"
+      YOUTUBE_PREFERRED_CHANNELS: "${YOUTUBE_PREFERRED_CHANNELS:-}"
+      YOUTUBE_DAILY_LIMIT: "${YOUTUBE_DAILY_LIMIT:-100}"
+      DISCOGS_TOKEN: "${DISCOGS_TOKEN:-}"
+      DISCOGS_MASTER_OVERRIDES: "${DISCOGS_MASTER_OVERRIDES:-}"
+      MEGALOBIZ_API_KEY: "${MEGALOBIZ_API_KEY:-}"
+      TZ: Europe/Brussels
+    volumes:
+      - type: bind
+        source: ${MUSIC_HOST_PATH:?Set MUSIC_HOST_PATH in .env}
+        target: /music
+        read_only: ${MUSIC_READ_ONLY:-true}
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${BACKUP_HOST_PATH:?Set BACKUP_HOST_PATH in .env}
+        target: /backups
+        bind:
+          create_host_path: false

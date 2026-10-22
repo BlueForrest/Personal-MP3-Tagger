@@ -1,0 +1,459 @@
+<!doctype html>
+<!-- jstal-tagger V{{ version }} - user manual (served at /manual, opened with the book button in the header). -->
+<html lang="en" xmlns:mso="urn:schemas-microsoft-com:office:office" xmlns:msdt="uuid:C2F41010-65B3-11d1-A29F-00AA00C14882">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>jstal-tagger – user manual</title>
+	<link rel="icon" href="/favicon.ico">
+	<link rel="stylesheet" href="/static/style.css?v={{ version }}">
+	<script>
+		try { document.documentElement.dataset.theme = localStorage.getItem('jstal-theme') || 'dark'; } catch (e) { document.documentElement.dataset.theme = 'dark'; }
+	</script>
+	<style>
+		body { line-height: 1.55; }
+		.manual-header { display: flex; align-items: center; gap: 14px; padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
+		.manual-header img { width: 40px; height: 40px; object-fit: contain; }
+		.manual-header h1 { font-size: 19px; }
+		.manual-header .tools { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+		.layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 28px; max-width: 1240px; margin: 0 auto; padding: 22px 24px 60px; }
+		nav.toc { position: sticky; top: 76px; align-self: start; max-height: calc(100vh - 90px); overflow: auto; font-size: 13px; }
+		nav.toc ol { list-style: none; margin: 0; padding: 0; }
+		nav.toc li { margin: 0; }
+		nav.toc a { display: block; padding: 4px 8px; border-radius: 6px; color: var(--text); text-decoration: none; }
+		nav.toc a:hover { background: var(--hover); color: var(--accent); }
+		nav.toc .num { color: var(--muted); display: inline-block; width: 24px; }
+		article { max-width: 880px; }
+		article h2 { font-size: 22px; margin: 42px 0 12px; padding-top: 8px; border-top: 1px solid var(--border); }
+		article h2:first-of-type { margin-top: 8px; border-top: 0; }
+		article h3 { font-size: 16px; margin: 24px 0 8px; color: var(--accent); }
+		article p, article li { max-width: 78ch; }
+		article table { border-collapse: collapse; width: 100%; margin: 10px 0 16px; font-size: 13.5px; }
+		article th, article td { border-bottom: 1px solid var(--border); padding: 7px 10px; text-align: left; vertical-align: top; }
+		article th { color: var(--muted); font-weight: 600; background: var(--surface-2); }
+		article td:first-child { white-space: nowrap; font-weight: 600; }
+		article td.wrap:first-child { white-space: normal; }
+		kbd { font: 12px ui-monospace, Consolas, monospace; background: var(--raised); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; }
+		.btn { display: inline-block; font-size: 12.5px; font-weight: 600; border: 1px solid var(--border); border-radius: 7px; padding: 1px 8px; background: var(--raised); white-space: nowrap; }
+		.btn.primary { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+		.btn.danger { background: var(--danger-bg); border-color: var(--danger-bg); color: #fff; }
+		.tip { border-left: 3px solid var(--accent); background: var(--surface-2); padding: 10px 14px; border-radius: 6px; margin: 12px 0; }
+		.tip.warn { border-left-color: var(--warn); }
+		.tip.danger { border-left-color: var(--danger); }
+		.new { font-size: 11px; font-weight: 700; color: var(--ok); border: 1px solid var(--ok); border-radius: 999px; padding: 0 7px; vertical-align: middle; margin-left: 6px; }
+		.lead { font-size: 15.5px; color: var(--muted); }
+		figure { margin: 14px 0; }
+		figure .mock { border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); padding: 10px 14px; font-size: 13px; }
+		figcaption { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+		.mock .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 4px 0; }
+		.mock .pill { font-size: 12px; }
+		.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+		@media (max-width: 900px) { .layout { grid-template-columns: 1fr; padding: 14px; } nav.toc { position: static; max-height: none; } }
+		@media print {
+			/* always print on white, whatever theme the screen uses */
+			:root, :root[data-theme=dark] { color-scheme: light; --bg: #fff; --surface: #fff; --surface-2: #f4f6f9; --raised: #e9eef5; --input: #fff;
+				--border: #c9d3df; --text: #17253a; --muted: #56687f; --accent: #1f5fb0; --accent-strong: #1f5fb0; --ok: #1d9a60; --warn: #a87612;
+				--danger: #c0392b; --danger-bg: #c0392b; --hover: #f3f7fc; --shadow: none; }
+			.manual-header .tools, nav.toc { display: none; }
+			.manual-header { position: static; }
+			.layout { display: block; padding: 0; }
+			article { max-width: none; }
+			article h2 { break-after: avoid; }
+			article h3 { break-after: avoid; }
+			article table, figure, .tip, pre { break-inside: avoid; }
+			body { font-size: 12px; }
+			a { color: inherit; text-decoration: none; }
+		}
+	</style>
+
+<!--[if gte mso 9]><xml>
+<mso:CustomDocumentProperties>
+<mso:_dlc_DocId msdt:dt="string">EHPN5AN47N7D-53656773-881</mso:_dlc_DocId>
+<mso:_dlc_DocIdItemGuid msdt:dt="string">3f28dbec-5e11-4437-925e-c325f5ac64dc</mso:_dlc_DocIdItemGuid>
+<mso:_dlc_DocIdUrl msdt:dt="string">https://powerbyteit.sharepoint.com/sites/PowerByte/_layouts/15/DocIdRedir.aspx?ID=EHPN5AN47N7D-53656773-881, EHPN5AN47N7D-53656773-881</mso:_dlc_DocIdUrl>
+</mso:CustomDocumentProperties>
+</xml><![endif]-->
+</head>
+<body>
+
+<header class="manual-header">
+	<img src="/static/MP3Tag.png" alt="">
+	<div>
+		<h1>jstal-tagger – user manual</h1>
+		<span class="subtitle">MP3 tag maintenance · version {{ version }}</span>
+	</div>
+	<div class="tools">
+		<a class="btn" href="/">← Back to the app</a>
+		<button class="btn" type="button" onclick="window.print()">Print / save as PDF</button>
+		<button id="theme-toggle" class="btn" type="button">Theme</button>
+	</div>
+</header>
+
+<div class="layout">
+<nav class="toc" aria-label="Contents">
+	<ol>
+		<li><a href="#about"><span class="num">1</span>What it does</a></li>
+		<li><a href="#start"><span class="num">2</span>Starting and the header</a></li>
+		<li><a href="#settings"><span class="num">3</span>Settings (.env)</a></li>
+		<li><a href="#folders"><span class="num">4</span>Folders and listing</a></li>
+		<li><a href="#grid"><span class="num">5</span>The song grid</a></li>
+		<li><a href="#select"><span class="num">6</span>Selecting songs</a></li>
+		<li><a href="#listen"><span class="num">7</span>Listening to a song</a></li>
+		<li><a href="#edit"><span class="num">8</span>Editing tags (drafts)</a></li>
+		<li><a href="#covers"><span class="num">9</span>Covers</a></li>
+		<li><a href="#lookup"><span class="num">10</span>Lookup data (online sources)</a></li>
+		<li><a href="#youtube"><span class="num">11</span>The YouTube counter</a></li>
+		<li><a href="#save"><span class="num">12</span>Saving</a></li>
+		<li><a href="#wipe"><span class="num">13</span>Wiping tags</a></li>
+		<li><a href="#report"><span class="num">14</span>Report and export</a></li>
+		<li><a href="#safety"><span class="num">15</span>Safety, backups, restore</a></li>
+		<li><a href="#trouble"><span class="num">16</span>Messages and troubleshooting</a></li>
+		<li><a href="#reference"><span class="num">17</span>Quick reference</a></li>
+	</ol>
+</nav>
+
+<article>
+
+<p class="lead">jstal-tagger is a small web application that checks and maintains the ID3 tags of the MP3 files
+in your music folder, so the files are ready for the jukebox application. It runs in Docker on your own
+server (port 5080). There is no login: use it on your own network only, never on the internet.</p>
+
+<!-- ======================================================================= -->
+<h2 id="about">1. What it does</h2>
+<ul>
+	<li><b>Browse</b> the music folder and <b>list</b> the MP3 files with their tags in a grid.</li>
+	<li><b>Edit</b> tags one cell at a time. Edits are kept as <b>drafts</b> in the browser (yellow cells) until you save them.</li>
+	<li><b>Look up</b> missing data online: year, cover, comment, YouTube link and lyrics.</li>
+	<li><b>Listen</b> to a song in the browser before you decide about its tags. <span class="new">V2.1</span></li>
+	<li><b>Save</b> the drafts of the selected songs, after a confirmation window that shows exactly what changes.</li>
+	<li><b>Wipe</b> chosen tag fields from the selected songs.</li>
+	<li><b>Report</b> the result per file, <b>export</b> the tags as JSON.</li>
+</ul>
+<p>Every write first makes a verified backup copy and changes only the fields you approved; the audio data of
+a file never changes (see <a href="#safety">15. Safety</a>).</p>
+<p>What it does <b>not</b> do: rename or move files, convert audio, write anything to files outside the music
+folder, or write anything at all while the app is in read-only mode.</p>
+
+<!-- ======================================================================= -->
+<h2 id="start">2. Starting and the header</h2>
+<p>Open <code>http://&lt;server&gt;:5080</code> in a browser (Chrome, Edge or Firefox; after an update press
+<kbd>Ctrl</kbd>+<kbd>F5</kbd> once so the browser loads the new page files).</p>
+<figure>
+	<div class="mock">
+		<div class="row"><b>jstal-tagger</b> <span class="muted">MP3 tag maintenance · V{{ version }}</span>
+			<span class="badge on">Writing on</span> <span class="badge quota on">YouTube 12 / {{ youtube_limit }}</span>
+			<span class="spacer"></span> <span style="color:var(--accent)">14:05:32</span> <span class="btn">📖</span> <span class="btn">☀</span></div>
+	</div>
+	<figcaption>The header.</figcaption>
+</figure>
+<table>
+	<tr><th>Item</th><th>Meaning</th></tr>
+	<tr><td>Writing on / Read-only</td><td>Whether the server may write to the files. <b>Read-only</b> means <code>ENABLE_TAG_WRITES=false</code>
+		or a read-only music folder: you can still list, edit drafts, look up data and check plans, but nothing is written.</td></tr>
+	<tr><td>YouTube 12 / {{ youtube_limit }} <span class="new">V2.1</span></td><td>YouTube searches used today and the daily limit. Only shown when a YouTube key is configured.
+		Click it to refresh. See <a href="#youtube">11. The YouTube counter</a>.</td></tr>
+	<tr><td>Clock</td><td>The time in the browser.</td></tr>
+	<tr><td>📖 <span class="new">V2.1</span></td><td>Opens this manual in a new tab.</td></tr>
+	<tr><td>☀ / 🌙</td><td>Switches between the dark and the light theme (remembered by the browser).</td></tr>
+</table>
+
+<!-- ======================================================================= -->
+<h2 id="settings">3. Settings (.env)</h2>
+<p>All settings are in the <code>.env</code> file next to <code>docker-compose.yml</code> (an example is in
+<code>.env.example</code>). After a change run <code>docker compose up -d --force-recreate</code>.</p>
+<table>
+	<tr><th>Setting</th><th>Meaning</th></tr>
+	<tr><td>MUSIC_HOST_PATH</td><td>The music folder on the server (mounted as <code>/music</code>).</td></tr>
+	<tr><td>BACKUP_HOST_PATH</td><td>The backup folder, <b>outside</b> the music folder (mounted as <code>/backups</code>).</td></tr>
+	<tr><td>ENABLE_TAG_WRITES</td><td><code>false</code> (default) = read-only. Writing needs <code>true</code> <b>and</b> <code>MUSIC_READ_ONLY=false</code>.</td></tr>
+	<tr><td>MUSIC_READ_ONLY</td><td><code>true</code> (default) mounts the music folder read-only.</td></tr>
+	<tr><td>KEEP_BACKUPS</td><td><code>false</code> (default): the backups of a save in which every file was saved and verified are removed afterwards.
+		Wipe backups and saves with a failed file are always kept. <code>true</code> keeps every backup.</td></tr>
+	<tr><td>EDIT_MODE_DEFAULT <span class="new">V2.1</span></td><td><code>true</code> (default): the page starts with <b>Edit tags</b> switched on. <code>false</code>: it starts switched off, as in V2.</td></tr>
+	<tr><td>LOOKUP_USER_AGENT</td><td>Required by MusicBrainz, LRCLIB and Megalobiz: <code>jstal-tagger/2.1 (mailto:you@example.com)</code> with your real contact.</td></tr>
+	<tr><td>YOUTUBE_API_KEY</td><td>YouTube Data API v3 key. Empty = the YouTube lookup is off (shown as "not configured").</td></tr>
+	<tr><td>YOUTUBE_REGION</td><td>Two-letter country code for the YouTube search, default <code>BE</code>.</td></tr>
+	<tr><td>YOUTUBE_PREFERRED_CHANNELS</td><td>Channel names that are ranked higher, separated by <code>|</code>.</td></tr>
+	<tr><td>YOUTUBE_DAILY_LIMIT <span class="new">V2.1</span></td><td>Searches per day before the app refuses further YouTube lookups, default <code>100</code> (the free quota).</td></tr>
+	<tr><td>DISCOGS_TOKEN</td><td>Discogs personal access token. Empty = the Discogs lookup is off.</td></tr>
+	<tr><td>DISCOGS_MASTER_OVERRIDES</td><td>JSON <code>{"artist|title": master id}</code> for songs that Discogs matches wrongly.</td></tr>
+	<tr><td>MEGALOBIZ_API_KEY <span class="new">V2.1</span></td><td>Optional. Megalobiz works without a key (30 requests a minute, 1000 a day); a free key raises the limits.</td></tr>
+</table>
+
+<!-- ======================================================================= -->
+<h2 id="folders">4. Folders and listing</h2>
+<p>The folder bar shows where you are (the breadcrumb <b>🎵 Music › Oldies</b>) and the sub-folders as chips.</p>
+<ul>
+	<li>Click a <b>folder chip</b> to open it; click a part of the breadcrumb or <span class="btn">↑</span> to go back.</li>
+	<li>Tick <b>Include subfolders</b> to list the songs of all sub-folders as well.</li>
+	<li>Click <span class="btn primary">List MP3 files</span>. Every file is read and hashed, so a large folder takes a moment
+		(about 100 songs in half a second). Files that cannot be read get a red <b>Read error</b>.</li>
+</ul>
+<p>Only files with the extension <code>.mp3</code> are listed. Symbolic links and files outside the music folder are ignored.</p>
+<div class="tip warn">Changing the folder or listing again discards unsaved drafts (the page asks first).</div>
+
+<!-- ======================================================================= -->
+<h2 id="grid">5. The song grid</h2>
+<table>
+	<tr><th>Column</th><th>Shows</th></tr>
+	<tr><td>Filename</td><td>Click it for <b>all</b> ID3 tags of the file, the drafts and the SHA-256 (with a JSON download).</td></tr>
+	<tr><td>Listen <span class="new">V2.1</span></td><td>▶ plays the song (see <a href="#listen">7</a>).</td></tr>
+	<tr><td>Artist, Title, Album</td><td>TPE1, TIT2, TALB. Several values in one tag are shown as "Toto / Guest Singer".</td></tr>
+	<tr><td>Year</td><td>TDRC (ID3v2.4) or TYER (ID3v2.3). Four digits.</td></tr>
+	<tr><td>BPM, Track, Genre</td><td>TBPM, TRCK, TCON.</td></tr>
+	<tr><td>Duration</td><td>The <b>measured</b> audio time. Editing it only changes the stored TLEN value (milliseconds).</td></tr>
+	<tr><td>Cover</td><td>A thumbnail of the embedded front cover (APIC). Click it to see it large.</td></tr>
+	<tr><td>Lyrics</td><td><b>LRC</b> (synchronised, lines like <code>[01:23.45] text</code>), <b>Plain</b>, or nothing (USLT).</td></tr>
+	<tr><td>YouTube URL (TVSHOW)</td><td>The link the jukebox uses for the video (custom tag TXXX:TVSHOW).</td></tr>
+	<tr><td>VIDEO</td><td>Tick box: ticked = TXXX:VIDEO is "Yes", unticked = the tag is removed.</td></tr>
+	<tr><td>Comment</td><td>COMM (English, without description).</td></tr>
+	<tr><td>Other tags</td><td>The number of ID3 frames that have no column (URLs, key, ReplayGain, custom TXXX, unknown frames). Click the number for the list.</td></tr>
+	<tr><td>Relative path, Read error</td><td>Where the file is, and why it could not be read.</td></tr>
+</table>
+<ul>
+	<li><b>Sort</b>: click a column title (again for the other direction).</li>
+	<li><b>Filter loaded songs</b>: only songs that contain <i>all</i> typed words (in any column) stay visible. The filter does not change the selection.</li>
+	<li><span class="btn">Columns</span> hides or shows columns; the choice is remembered by the browser.</li>
+	<li>The counters under the toolbar show the number of files, how many are shown, selected, with drafts, and with read errors.</li>
+</ul>
+
+<!-- ======================================================================= -->
+<h2 id="select">6. Selecting songs</h2>
+<p>Saving, wiping and exporting work on the <b>selected</b> songs (blue rows).</p>
+<ul>
+	<li>Tick the box at the start of a row. The box in the column header selects or deselects all <i>shown</i> songs.</li>
+	<li><span class="btn">Select all</span> / <span class="btn">Deselect all</span> in the toolbar also include songs hidden by the filter.</li>
+	<li>A song with a draft is selected automatically, so <b>Save tags</b> includes it.</li>
+	<li>After a successful save the saved songs are deselected, so a wipe that follows cannot hit them by accident.</li>
+</ul>
+
+<!-- ======================================================================= -->
+<h2 id="listen">7. Listening to a song <span class="new">V2.1</span></h2>
+<p>Click <span class="btn">▶</span> in the <b>Listen</b> column. A player bar appears above the grid with the artist and title,
+the browser's own play / pause, position and volume controls. The same button (now <span class="btn">⏸</span>) pauses
+and resumes; click ▶ on another row to switch songs; <span class="btn">✕</span> closes the player.</p>
+<p>In the tag editor the <span class="btn">▶ Listen</span> button next to the file name does the same, which is handy when you
+check lyrics or a YouTube result.</p>
+<p>Listening is read-only: the server streams the file as it is, nothing is changed and the song keeps playing while
+you edit, save or wipe. The browser can seek (jump) inside the song.</p>
+
+<!-- ======================================================================= -->
+<h2 id="edit">8. Editing tags (drafts)</h2>
+<h3>Edit mode</h3>
+<p>Editing is possible when the <b>Edit tags</b> switch is on. Since V2.1 the page starts with it on
+(<code>EDIT_MODE_DEFAULT</code>). The grid gets a yellow border and editable cells show a dashed outline when you hover.</p>
+<h3>Changing a cell</h3>
+<ol>
+	<li><b>Double-click</b> a cell (or click it and press <kbd>Enter</kbd>). The tag editor opens with the current value.</li>
+	<li>Type the new value, or use <b>Lookup data</b> (see <a href="#lookup">10</a>).</li>
+	<li><span class="btn primary">OK</span> makes a <b>draft</b>: the cell turns yellow. Nothing is written yet.
+		<span class="btn">Cancel</span> or <kbd>Esc</kbd> closes without a draft.</li>
+</ol>
+<ul>
+	<li>OK without a change makes no draft; typing the old value back removes the draft.</li>
+	<li><span class="btn danger">Clear field</span> makes a draft that <b>deletes</b> the field when saving ("(cleared)").</li>
+	<li>When a cell has a draft, the editor also shows the value that is saved in the file.</li>
+	<li><b>VIDEO</b> is a tick box in the grid itself (in edit mode): ticked = Yes, unticked = the tag is removed.</li>
+	<li><b>Duration</b>: the editor changes only the stored TLEN value (milliseconds); the measured time stays.</li>
+	<li><b>Year</b>: four digits. <b>Track</b>: a number or number/total (6/12). <b>BPM</b>: a number.</li>
+	<li><b>Lyrics</b>: saving replaces all lyrics of the file, also synchronised (SYLT) ones.</li>
+	<li>A tag with several values (shown with " / ") keeps them when you press OK without a change; a changed text is saved as one value.</li>
+</ul>
+<div class="tip warn"><b>Drafts live in the browser.</b> They are lost when you reload or close the page (the browser warns),
+when you change the folder or list again. <span class="btn">Discard drafts</span> throws them away on purpose.</div>
+
+<!-- ======================================================================= -->
+<h2 id="covers">9. Covers</h2>
+<p>Double-click the Cover cell (edit mode) or click the thumbnail. In the cover editor you can:</p>
+<ul>
+	<li><b>Choose a picture on this computer</b> (JPEG, PNG or WEBP, up to 25 MiB). Big pictures are made smaller in the browser
+		(at most 600 × 600, never enlarged); the server stores a JPEG and replaces <i>all</i> embedded pictures with that one front cover.</li>
+	<li>Use <b>Lookup data</b> to find a cover on MusicBrainz (Cover Art Archive) or Discogs, click <span class="btn">Use</span> on a result and OK.
+		The cover is downloaded by the server (artwork sites only) as a 600 px JPEG draft.</li>
+	<li><b>MusicHoarders</b> opens in a new tab: download a cover there, then choose it with "Choose a picture".</li>
+	<li><span class="btn danger">Clear field</span> removes all pictures when saving.</li>
+</ul>
+
+<!-- ======================================================================= -->
+<h2 id="lookup">10. Lookup data (online sources)</h2>
+<p>For the fields <b>Year, Cover, Comment, YouTube URL and Lyrics</b> the tag editor has a <b>Lookup data</b> section.</p>
+<ol>
+	<li>Adjust the <b>Artist</b> and <b>Title</b> used for the search if needed (this does not change the tags).</li>
+	<li>Tick the sources and click <span class="btn primary">Lookup Data</span>. Each source shows its results in its own column.</li>
+	<li>Click <span class="btn">Use</span> on a result: it fills the field (or shows the cover). You can still change the text before OK.</li>
+	<li>Click <span class="btn primary">OK</span> to make the draft.</li>
+</ol>
+<table>
+	<tr><th>Field</th><th>Sources</th><th>Notes</th></tr>
+	<tr><td>Year</td><td>MusicBrainz, Discogs</td><td>The earliest year found is filled in already; check the <i>View source</i> link.</td></tr>
+	<tr><td>Cover</td><td>MusicBrainz / Cover Art Archive, Discogs, MusicHoarders (browser tab)</td><td>Front covers of matching releases.</td></tr>
+	<tr><td>Comment</td><td>MusicBrainz + Wikipedia, Discogs artist profile</td><td>A short artist / recording text.</td></tr>
+	<tr><td>YouTube URL</td><td>YouTube, Discogs release videos</td><td>Public, embeddable music videos ranked on title, artist, duration and "official" wording. Live and concert uploads are skipped. Counted by the daily counter.</td></tr>
+	<tr><td>Lyrics</td><td>LRCLIB, Megalobiz <span class="new">V2.1</span></td><td>Synchronised (LRC) lyrics are preferred over plain text. Megalobiz only returns LRC sheets.</td></tr>
+</table>
+<h3>Megalobiz <span class="new">V2.1</span></h3>
+<p>Megalobiz (megalobiz.com) is a large collection of user-made synchronised lyrics. The app uses its public API:
+it searches on artist, title and duration and fetches the best matching sheets (at most 3). A sheet is only shown
+when artist and title match closely (90 %) and the duration is within 3 seconds; sheets without timestamps are
+skipped. Because the sheets are timed by hand, play the song (▶ Listen) and check that the lines keep up before you
+save. The <i>View source</i> link opens the sheet's page on Megalobiz.</p>
+<div class="tip">Matches are heuristic for every source. Always look at the source link before you save; "Use" and OK only make a draft.</div>
+
+<!-- ======================================================================= -->
+<h2 id="youtube">11. The YouTube counter <span class="new">V2.1</span></h2>
+<p>The YouTube Data API gives 10 000 quota units a day; one search costs 100 units, so about <b>{{ youtube_limit }} searches
+a day</b> are possible. The header shows <b>YouTube n / {{ youtube_limit }}</b>: the searches used today and the limit.</p>
+<ul>
+	<li>The badge is green, turns <b>orange</b> when fewer than about 15 % are left and <b>red</b> when the limit is reached.</li>
+	<li>When the limit is reached the app does not call YouTube any more: the lookup column says why, a message pops up,
+		and the YouTube source is unticked in the lookup section (it says "daily limit reached").</li>
+	<li>If Google itself reports that the quota is used up (it also counts calls from other programs with the same key),
+		the badge shows that too.</li>
+	<li>Google resets the quota at <b>midnight Pacific time</b> (about 09:00 in Belgium); the badge's tooltip shows the local time.
+		Click the badge to refresh it.</li>
+	<li>A result that is still in the cache (six hours) costs nothing.</li>
+	<li>The counter is saved in <code>.jstal-tagger/youtube-quota.json</code> in the backup folder, so it survives a restart
+		of the container. The daily limit can be changed with <code>YOUTUBE_DAILY_LIMIT</code>.</li>
+</ul>
+
+<!-- ======================================================================= -->
+<h2 id="save">12. Saving</h2>
+<ol>
+	<li>Make drafts (yellow cells). The <span class="btn primary">Save tags (n)</span> button shows how many selected songs have drafts.</li>
+	<li>Click it. The server checks every file and value and shows a <b>confirmation window</b>: per song a table
+		<i>Field · Now in the file · New</i>; covers as pictures. The raw plan is under "Technical details".</li>
+	<li>Click <span class="btn primary">Save these changes</span>. A progress bar shows "Saving 3 / 8".</li>
+	<li>Saved songs are read again, their drafts disappear and they are deselected. A message shows the result; if a file
+		failed, the <b>Last report</b> opens.</li>
+</ol>
+<ul>
+	<li>At most {{ max_batch }} songs per save. A prepared plan is valid for 30 minutes and can be used once.</li>
+	<li>A file that changed since it was listed is refused ("File changed since it was listed"): list the folder again.</li>
+	<li><span class="btn">Cancel — nothing is written</span> closes the window without writing.</li>
+	<li>In read-only mode you can prepare and check a plan, but the save button stays disabled.</li>
+</ul>
+
+<!-- ======================================================================= -->
+<h2 id="wipe">13. Wiping tags</h2>
+<p>Wiping removes chosen fields from the selected songs. Save or discard your drafts first.</p>
+<ol>
+	<li>Select the songs and click <span class="btn danger">Wipe tags…</span>.</li>
+	<li>Tick the fields to remove. <b>Artist, Title and Album are unticked by default</b> (protected).
+		<span class="btn">Select all</span> and <span class="btn">Deselect all</span> <span class="new">V2.1</span> tick or untick every field at once;
+		<span class="btn">Default choice</span> restores the default. The line at the bottom shows how many fields are ticked and warns
+		when Artist, Title or Album is among them.</li>
+	<li>Click <span class="btn danger">Prepare wipe…</span>. The confirmation window lists per song the exact ID3 frames that are removed
+		and the fields that stay protected.</li>
+	<li>The confirmation text <b>{{ wipe_phrase }}</b> is already filled in <span class="new">V2.1</span>. Check the list, then click
+		<span class="btn danger">Wipe these tags</span>. (If you change the text, the button is disabled until it matches again.)</li>
+</ol>
+<ul>
+	<li><b>Other tags</b> removes every frame that has no column: URLs, key, ReplayGain, custom TXXX and unknown frames.
+		A file with APEv2 tags (not ID3) is refused for that, rather than leaving hidden tags behind.</li>
+	<li><b>Duration</b> only removes the stored TLEN value; <b>VIDEO</b> removes the TXXX:VIDEO tag.</li>
+	<li>Wipe backups are always kept (see 15).</li>
+</ul>
+<div class="tip danger">A wipe is a real change to your files. The protection is the exact list in the confirmation window — read it.</div>
+
+<!-- ======================================================================= -->
+<h2 id="report">14. Report and export</h2>
+<ul>
+	<li><span class="btn">Last report</span> shows the result per file of the last save or wipe since the container started:
+		saved / failed, the error text, the batch name and where the backups are. <span class="btn">Download JSON</span> saves it.
+		The full report of a kept batch is also in <code>BACKUP_HOST_PATH/&lt;batch&gt;/write-report.json</code>.</li>
+	<li><span class="btn">Export selected</span> downloads the tags of the selected songs as a JSON file (nothing is written to the songs).</li>
+	<li>Clicking a <b>filename</b> shows all ID3 tags of that file; the JSON of one song can be downloaded there too.</li>
+</ul>
+
+<!-- ======================================================================= -->
+<h2 id="safety">15. Safety, backups, restore</h2>
+<ul>
+	<li>Nothing is written unless <code>ENABLE_TAG_WRITES=true</code> <b>and</b> the music folder is writable.</li>
+	<li>Every save or wipe is <b>prepared</b> first: the server checks every file and value and shows the exact plan.</li>
+	<li>Per file: a verified backup copy is made first; the change is made on a temporary copy; it is checked that only the
+		approved frames changed and that the audio part is byte-for-byte the same; only then the original is replaced
+		(same permissions and owner). A failure leaves the original untouched and keeps the failed attempt next to the backup.</li>
+	<li>A failure is per file: the other files of the batch are still saved.</li>
+	<li>Backups are in <code>BACKUP_HOST_PATH/&lt;batch&gt;/&lt;path&gt;</code>; batches are named <code>save-…</code> or <code>wipe-…</code>.
+		With <code>KEEP_BACKUPS=false</code> the backups of a fully successful <i>save</i> are removed afterwards; wipe backups and
+		batches with a failed file are always kept.</li>
+	<li>Only ID3v2.3 / ID3v2.4 (and untagged) files are written. ID3v1 copies of changed fields are updated.</li>
+	<li>Refused: symbolic links, hard-linked files, files larger than 512 MiB, paths outside the music folder.</li>
+	<li>One save or wipe at a time. Do not move or edit the files with another program while a save runs, and do not stop the container during a save.</li>
+</ul>
+<h3>Restore (manual)</h3>
+<ol>
+	<li>Stop the container: <code>docker compose stop</code>.</li>
+	<li>Find the batch in the backup folder (the <b>Last report</b> or <code>write-report.json</code> names it) and copy the backup
+		file back over the song.</li>
+	<li>Start the container and list the folder again. There is no restore button.</li>
+</ol>
+
+<!-- ======================================================================= -->
+<h2 id="trouble">16. Messages and troubleshooting</h2>
+<table>
+	<tr><th>Message</th><th>What to do</th></tr>
+	<tr><td class="wrap">Read-only (header)</td><td>Set <code>ENABLE_TAG_WRITES=true</code> and <code>MUSIC_READ_ONLY=false</code> in .env, then <code>docker compose up -d --force-recreate</code>.</td></tr>
+	<tr><td class="wrap">File changed since it was listed</td><td>Another program changed the file. List the folder again and make the draft again.</td></tr>
+	<tr><td class="wrap">Same-origin request required</td><td>Open the app directly with its own address and port (not through another page or proxy that changes the address).</td></tr>
+	<tr><td class="wrap">Set LOOKUP_USER_AGENT …</td><td>MusicBrainz, LRCLIB and Megalobiz need it. Fill it in .env with your real contact.</td></tr>
+	<tr><td class="wrap">Not configured (Discogs / YouTube)</td><td>Add <code>DISCOGS_TOKEN</code> / <code>YOUTUBE_API_KEY</code> to .env.</td></tr>
+	<tr><td class="wrap">The daily limit of {{ youtube_limit }} YouTube searches is reached</td><td>Wait for the reset (about 09:00 Belgian time). Cached results still work.</td></tr>
+	<tr><td class="wrap">Megalobiz rate limit reached</td><td>Wait a minute (30 requests a minute without a key) or add a free <code>MEGALOBIZ_API_KEY</code>.</td></tr>
+	<tr><td class="wrap">APEv2 tags found</td><td>The file has APE tags next to ID3. Remove them with another tool first, or untick "Other tags" in the wipe.</td></tr>
+	<tr><td class="wrap">The request is too large</td><td>Save fewer covers at once.</td></tr>
+	<tr><td class="wrap">This file cannot be played in the browser</td><td>The file is damaged or not a real MP3. Click the filename: the Read error says more.</td></tr>
+	<tr><td class="wrap">A save or wipe is still running</td><td>Wait for the progress bar to finish. After a page reload the app re-attaches to the running job.</td></tr>
+	<tr><td class="wrap">Lost the connection to the save job</td><td>Reload the page; check the Last report. Files are never half-written.</td></tr>
+</table>
+<p>Useful checks on the server (nothing is written):</p>
+<pre>docker compose logs -f jstal-tagger
+docker compose run --rm --no-deps --entrypoint python jstal-tagger -c "import app; print('Application imports successfully.')"
+docker compose run --rm --no-deps --entrypoint python jstal-tagger tags.py --self-test "/music/SOME SONG.mp3"</pre>
+
+<!-- ======================================================================= -->
+<h2 id="reference">17. Quick reference</h2>
+<div class="cols">
+<div>
+<h3>Mouse</h3>
+<table>
+	<tr><td>Folder chip / breadcrumb</td><td>open a folder</td></tr>
+	<tr><td>Column title</td><td>sort</td></tr>
+	<tr><td>Filename</td><td>all tags of the file</td></tr>
+	<tr><td>▶</td><td>listen / pause</td></tr>
+	<tr><td>Double-click a cell</td><td>edit it (edit mode)</td></tr>
+	<tr><td>Cover thumbnail</td><td>show it large / edit it</td></tr>
+	<tr><td>"Other tags" number</td><td>list of the other frames</td></tr>
+	<tr><td>YouTube badge</td><td>refresh the counter</td></tr>
+</table>
+</div>
+<div>
+<h3>Keyboard</h3>
+<table>
+	<tr><td><kbd>Enter</kbd> on a cell</td><td>edit it (edit mode)</td></tr>
+	<tr><td><kbd>Enter</kbd> in the editor</td><td>OK (single-line fields)</td></tr>
+	<tr><td><kbd>Esc</kbd></td><td>close a window without changes</td></tr>
+	<tr><td><kbd>Ctrl</kbd>+<kbd>F5</kbd></td><td>reload after an update</td></tr>
+</table>
+<h3>Files of the app</h3>
+<table>
+	<tr><td>app.py</td><td>web server</td></tr>
+	<tr><td>tags.py</td><td>reading / safe writing of tags</td></tr>
+	<tr><td>lookups.py</td><td>online sources</td></tr>
+	<tr><td>templates/, static/</td><td>the page, this manual, script, style</td></tr>
+</table>
+</div>
+</div>
+<p class="muted" style="margin-top:36px">jstal-tagger V{{ version }} · user manual</p>
+</article>
+</div>
+
+<script>
+	document.getElementById('theme-toggle').onclick = () => {
+		const theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+		document.documentElement.dataset.theme = theme;
+		try { localStorage.setItem('jstal-theme', theme); } catch (e) { /* private mode */ }
+	};
+</script>
+</body>
+</html>

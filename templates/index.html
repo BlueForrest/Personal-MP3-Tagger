@@ -1,0 +1,213 @@
+<!doctype html>
+<!-- jstal-tagger V{{ version }} - the page. All behaviour is in static/app.js, the look in static/style.css. -->
+<html lang="en" xmlns:mso="urn:schemas-microsoft-com:office:office" xmlns:msdt="uuid:C2F41010-65B3-11d1-A29F-00AA00C14882">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>jstal-tagger</title>
+	<link rel="icon" href="/favicon.ico">
+	<link rel="stylesheet" href="/static/style.css?v={{ version }}">
+	<script>
+		// set the theme before the page is drawn (no white flash)
+		try { document.documentElement.dataset.theme = localStorage.getItem('jstal-theme') || localStorage.getItem('songprep-theme') || 'dark'; } catch (e) { document.documentElement.dataset.theme = 'dark'; }
+	</script>
+
+<!--[if gte mso 9]><xml>
+<mso:CustomDocumentProperties>
+<mso:_dlc_DocId msdt:dt="string">EHPN5AN47N7D-53656773-878</mso:_dlc_DocId>
+<mso:_dlc_DocIdItemGuid msdt:dt="string">a9b89e7f-26c3-4862-9fba-8b1e4fbea8a5</mso:_dlc_DocIdItemGuid>
+<mso:_dlc_DocIdUrl msdt:dt="string">https://powerbyteit.sharepoint.com/sites/PowerByte/_layouts/15/DocIdRedir.aspx?ID=EHPN5AN47N7D-53656773-878, EHPN5AN47N7D-53656773-878</mso:_dlc_DocIdUrl>
+</mso:CustomDocumentProperties>
+</xml><![endif]-->
+</head>
+<body>
+
+<!-- ============================ HEADER ============================ -->
+<header class="app-header">
+	<div class="brand">
+		<img src="/static/MP3Tag.png" alt="">
+		<div>
+			<h1>jstal-tagger</h1>
+			<span class="subtitle">MP3 tag maintenance · V{{ version }}</span>
+		</div>
+	</div>
+	<span id="write-badge" class="badge" title="">…</span>
+	<span id="yt-quota" class="badge quota" title="" hidden>YouTube …</span>
+	<div class="header-tools">
+		<time id="clock"></time>
+		<a id="manual-btn" class="icon-btn" href="/manual" target="_blank" rel="noopener" title="User manual (opens in a new tab)" aria-label="User manual">📖</a>
+		<button id="theme-toggle" class="icon-btn" type="button" title="Switch theme" aria-label="Switch theme">☀</button>
+	</div>
+</header>
+
+<!-- ============================ FOLDERS ============================ -->
+<section class="card folder-bar" aria-label="Music folders">
+	<div class="folder-row">
+		<button id="up" class="icon-btn" type="button" title="Parent folder" aria-label="Parent folder">↑</button>
+		<nav id="breadcrumb" class="breadcrumb" aria-label="Current folder"></nav>
+		<span class="spacer"></span>
+		<label class="check"><input id="recursive" type="checkbox"> Include subfolders</label>
+		<button id="scan" class="primary" type="button">List MP3 files</button>
+	</div>
+	<div id="folders" class="folder-chips"></div>
+</section>
+
+<!-- ============================ SONGS ============================ -->
+<main class="card songs">
+	<div class="toolbar">
+		<div class="tool-group">
+			<input id="filter" type="search" placeholder="Filter loaded songs…" aria-label="Filter loaded songs">
+			<button id="select-all" type="button">Select all</button>
+			<button id="select-none" type="button">Deselect all</button>
+		</div>
+		<div class="tool-group">
+			<label class="switch" title="Double-click a cell (or press Enter) to edit it">
+				<input id="edit-toggle" type="checkbox"><span class="track" aria-hidden="true"></span> Edit tags
+			</label>
+			<button id="save" class="primary" type="button">Save tags</button>
+			<button id="discard" type="button">Discard drafts</button>
+		</div>
+		<div class="tool-group end">
+			<button id="columns-btn" type="button" title="Show or hide columns">Columns</button>
+			<button id="export" type="button" title="Download the tags of the selected songs as JSON">Export selected</button>
+			<button id="report-btn" type="button" title="Result of the last save or wipe">Last report</button>
+			<button id="wipe" class="danger" type="button">Wipe tags…</button>
+		</div>
+	</div>
+	<div id="status" class="status-bar" role="status"></div>
+	<!-- pre-listen: shown when a song is played with its ▶ button -->
+	<div id="player" class="player" hidden>
+		<span class="player-icon" aria-hidden="true">🎧</span>
+		<span id="player-title" class="player-title"></span>
+		<audio id="audio" controls preload="none"></audio>
+		<button id="player-stop" class="icon-btn" type="button" title="Stop and close the player" aria-label="Stop and close the player">✕</button>
+	</div>
+	<div id="progress" class="progress" hidden><div class="progress-fill"></div><span class="progress-text"></span></div>
+	<div class="table-wrap">
+		<table id="grid">
+			<thead><tr id="headers"></tr></thead>
+			<tbody id="rows"></tbody>
+		</table>
+		<div id="empty" class="empty-state">Choose a folder and click <b>List MP3 files</b>.</div>
+	</div>
+	<p class="hint">
+		Tick songs to select them. Make sure <b>Edit tags</b> is ON.     |
+		Double-click a cell (or press Enter) to edit it.     |  
+		Yellow cells are drafts, you still have to <b>SAVE</b> them.     | 
+		Click on a filename to view all its tags.     |
+		Press ▶ to listen to a song.
+	</p>
+</main>
+
+<!-- ============================ TAG EDITOR ============================ -->
+<dialog id="editor" class="wide" aria-labelledby="editor-title">
+	<form method="dialog" class="dialog-head">
+		<h2 id="editor-title"></h2>
+		<button class="icon-btn" value="cancel" aria-label="Close">✕</button>
+	</form>
+	<p class="editor-file-row">
+		<span id="editor-file" class="muted"></span>
+		<button id="editor-listen" class="small" type="button" title="Play or pause this song">▶ Listen</button>
+	</p>
+	<div id="editor-body"></div>
+	<section id="lookup" class="lookup" hidden>
+		<div class="lookup-head">
+			<h3>Lookup data</h3>
+			<div class="lookup-search">
+				<label>Artist <input id="lookup-artist" type="text"></label>
+				<label>Title <input id="lookup-title" type="text"></label>
+			</div>
+		</div>
+		<div id="lookup-sources" class="lookup-sources"></div>
+		<div class="lookup-actions">
+			<button id="lookup-run" class="primary" type="button">Lookup Data</button>
+			<span id="lookup-message" class="muted" role="status"></span>
+		</div>
+		<div id="lookup-results" class="lookup-results"></div>
+	</section>
+	<div class="dialog-actions">
+		<button id="editor-clear" class="danger" type="button" title="Draft: delete this field when saving">Clear field</button>
+		<span class="spacer"></span>
+		<button id="editor-cancel" type="button">Cancel</button>
+		<button id="editor-ok" class="primary" type="button">OK</button>
+	</div>
+	<p class="hint">OK only changes the draft. Nothing is written until <b>Save tags</b> and its confirmation.</p>
+</dialog>
+
+<!-- ============================ WIPE: CHOOSE FIELDS ============================ -->
+<dialog id="wipe-dialog" aria-labelledby="wipe-title">
+	<form method="dialog" class="dialog-head">
+		<h2 id="wipe-title">Wipe tags</h2>
+		<button class="icon-btn" value="cancel" aria-label="Close">✕</button>
+	</form>
+	<p id="wipe-count"></p>
+	<p class="muted">Ticked fields are removed from the selected songs. Unticked fields are protected.
+		<b>Other tags</b> means every ID3 frame that has no column (URLs, key, ReplayGain, custom TXXX …).
+		<b>Duration</b> only removes the stored TLEN value; the audio does not change.</p>
+	<div class="wipe-quick">
+		<button id="wipe-all" type="button" title="Tick every field, also Artist, Title and Album">Select all</button>
+		<button id="wipe-none" type="button" title="Untick every field">Deselect all</button>
+		<button id="wipe-defaults" type="button" title="Everything except Artist, Title and Album">Default choice</button>
+	</div>
+	<div id="wipe-fields" class="field-grid"></div>
+	<div class="dialog-actions">
+		<span id="wipe-chosen" class="muted"></span>
+		<span class="spacer"></span>
+		<button id="wipe-cancel" type="button">Cancel</button>
+		<button id="wipe-prepare" class="danger" type="button">Prepare wipe…</button>
+	</div>
+</dialog>
+
+<!-- ============================ CONFIRM SAVE / WIPE ============================ -->
+<dialog id="confirm" class="wide" aria-labelledby="confirm-title">
+	<div class="dialog-head">
+		<h2 id="confirm-title"></h2>
+	</div>
+	<p id="confirm-warning" class="notice"></p>
+	<div id="confirm-summary" class="summary"></div>
+	<details id="confirm-details">
+		<summary>Technical details</summary>
+		<pre id="confirm-json"></pre>
+	</details>
+	<label id="confirm-phrase-label" class="phrase">Confirmation text <strong id="confirm-phrase"></strong> (filled in for you — the button below does the wipe):
+		<input id="confirm-input" type="text" autocomplete="off" spellcheck="false">
+	</label>
+	<div class="dialog-actions">
+		<button id="confirm-cancel" type="button">Cancel — nothing is written</button>
+		<button id="confirm-ok" class="danger" type="button" disabled>Confirm and write</button>
+	</div>
+</dialog>
+
+<!-- ============================ INFORMATION (song details, report) ============================ -->
+<dialog id="info" class="wide" aria-labelledby="info-title">
+	<form method="dialog" class="dialog-head">
+		<h2 id="info-title"></h2>
+		<button class="icon-btn" value="close" aria-label="Close">✕</button>
+	</form>
+	<div id="info-body"></div>
+	<div class="dialog-actions">
+		<button id="info-download" type="button" hidden>Download JSON</button>
+		<span class="spacer"></span>
+		<button id="info-close" class="primary" type="button">Close</button>
+	</div>
+</dialog>
+
+<!-- ============================ COLUMNS ============================ -->
+<dialog id="columns-dialog" aria-labelledby="columns-title">
+	<form method="dialog" class="dialog-head">
+		<h2 id="columns-title">Columns</h2>
+		<button class="icon-btn" value="close" aria-label="Close">✕</button>
+	</form>
+	<div id="columns-list" class="field-grid"></div>
+	<div class="dialog-actions">
+		<button id="columns-all" type="button">Show all</button>
+		<span class="spacer"></span>
+		<button id="columns-close" class="primary" type="button">Done</button>
+	</div>
+</dialog>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<script src="/static/app.js?v={{ version }}"></script>
+</body>
+</html>
