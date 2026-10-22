@@ -1,5 +1,5 @@
 # Personal-MP3-Tagger
-Personal MP3 tagger
+jstal-tagger
 
 Build in python with the help of different (all free) AI-tools.
 
