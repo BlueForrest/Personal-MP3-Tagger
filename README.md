@@ -15,5 +15,7 @@ Make sure of making a back-up of your MP3 files before using this program.
 I can't be held responsible for any loss of data.
 It works for my personal case, will this work for you? who knows ... I hope it does.
 
+And if it works, give me a star  :)
+
 Need Help?  
 Ask AI as I might not be able to give any support.
