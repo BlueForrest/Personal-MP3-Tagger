@@ -1,12 +1,13 @@
 """
 ==================================================================================
-jstal-tagger - web server (app.py)                                            V2.1
+jstal-tagger - web server (app.py)                                            V2.3
 ==================================================================================
 
-A small web application to check and maintain the tags of the MP3 files in the mounted
-music folder (/music): browse folders, list the songs with their tags, edit tags (with
-online lookups for year, cover, comment, YouTube link and lyrics), listen to a song and
-wipe tags.
+A small web application to check and maintain the tags of the MP3 and MP4 files in the
+mounted music folder (/music) and (V2.3) video folder (/videos): browse folders, list the
+files with their tags, edit tags (with online lookups for year, cover, comment, YouTube
+link and lyrics), listen to a file and wipe tags. ReplayGain values are shown read-only
+and are never removed.
 
 Writing is off until ENABLE_TAG_WRITES=true and the music folder is mounted writable.
 Every write makes a verified backup first (BACKUP_ROOT) and changes only what you
@@ -21,13 +22,21 @@ approved. There is no login: use it on your own network only.
   7. Saving and wiping   prepare -> confirm -> background job -> status
 
 Files: app.py (this file), tags.py (reading / writing tags), lookups.py (online lookups),
-templates/index.html, templates/manual.html, static/app.js, static/style.css.
+templates/index.html, static/app.js, static/style.css, static/manual/ (the user manual
+as PDF and Word file).
 
 V2 (rebuild of V1): Stage 2 (batch collection) and Stage 3 (review and save) are removed;
 their lookups are in the tag editor. 13 Python files became 3. See CHANGES-V2.md.
 V2.1: edit mode at start (EDIT_MODE_DEFAULT), pre-listen (/api/audio), YouTube daily
 counter, Megalobiz lyrics, Select all / Deselect all in the Wipe window, prefilled wipe
 phrase, built-in user manual (/manual). See CHANGES-V2.1.md.
+V2.2: the user manual is a PDF (and .docx) shown in a window over the page (ℹ️ button), so
+no second app tab is opened; manual.html is gone and /manual redirects to the PDF.
+See CHANGES-V2.2.md.
+V2.3: a second library, Videos (VIDEO_HOST_PATH -> /videos), next to Music; MP4 / M4A / M4V
+files are listed, played, edited and wiped like MP3 files; the ReplayGain / mp3rgain values
+are shown (grid columns RG gain / RG peak, details) and kept by every save and wipe; the
+page remembers the last library and folder. See CHANGES-V2.3.md.
 """
 
 import copy
@@ -38,7 +47,7 @@ import threading
 import time
 from pathlib import Path
 
-from flask import Flask, Response, abort, jsonify, render_template, request, send_file, send_from_directory
+from flask import Flask, Response, abort, jsonify, redirect, render_template, request, send_file, send_from_directory
 
 import lookups
 import tags
@@ -48,8 +57,12 @@ import tags
 # 1. SETTINGS  (environment variables, see .env.example / docker-compose.yml)
 # =============================================================================
 
-VERSION = '2.1'
+VERSION = '2.3'
 ROOT = Path(os.environ.get('MUSIC_ROOT', '/music')).resolve()
+# V2.3: the Videos library (mounted from VIDEO_HOST_PATH). Not mounted = only Music is offered.
+VIDEO_ROOT = Path(os.environ.get('VIDEO_ROOT', '/videos')).resolve()
+LIBRARIES = {'music': ROOT, 'videos': VIDEO_ROOT}
+LIBRARY_LABELS = {'music': 'Music', 'videos': 'Videos'}
 BACKUP_ROOT = Path(os.environ.get('BACKUP_ROOT', '/backups'))
 MAX_BATCH = 100                   # songs per save / wipe
 PLAN_SECONDS = 1800               # a prepared save / wipe can be confirmed for 30 minutes
@@ -93,15 +106,49 @@ def require_same_origin():
         raise ValueError('JSON request required.')
 
 
-def music_path(value):
+def library_available(name):
+    return name in LIBRARIES and LIBRARIES[name].is_dir()
+
+
+def library_writable(name):
+    """False when the folder is mounted read-only (MUSIC_READ_ONLY / VIDEO_READ_ONLY=true)."""
+    return library_available(name) and os.access(LIBRARIES[name], os.W_OK)
+
+
+def read_only_reason(name):
+    setting = 'VIDEO_READ_ONLY' if name == 'videos' else 'MUSIC_READ_ONLY'
+    return ('The ' + LIBRARY_LABELS[name] + ' folder is mounted read-only. Set ' + setting
+            + '=false in .env and restart the container (docker compose up -d).')
+
+
+def library_root(name):
+    """V2.3: the root folder of a library ('music' or 'videos'). Raises ValueError."""
+    name = name or 'music'
+    if name not in LIBRARIES:
+        raise ValueError('Unknown library: choose music or videos.')
+    if not library_available(name):
+        raise ValueError('The ' + LIBRARY_LABELS[name] + ' folder is not mounted (see '
+                         + ('VIDEO_HOST_PATH' if name == 'videos' else 'MUSIC_HOST_PATH') + ' in .env).')
+    return LIBRARIES[name]
+
+
+def request_root():
+    """The library root of a GET request (?library=music|videos, default music)."""
     try:
-        return tags.inside(ROOT, value)
+        return library_root(request.args.get('library', 'music'))
+    except ValueError as exc:
+        abort(Response(json.dumps({'error': str(exc)}), status=404, mimetype='application/json'))
+
+
+def music_path(value, root=None):
+    try:
+        return tags.inside(root or ROOT, value)
     except ValueError:
         abort(403)
 
 
-def rel(path):
-    value = tags.relative(ROOT, path)
+def rel(path, root=None):
+    value = tags.relative(root or ROOT, path)
     return '' if value == '.' else value
 
 
@@ -125,11 +172,39 @@ def index():
     return render_template('index.html', version=VERSION)
 
 
+# V2.2: the user manual is a PDF (plus the same text as a Word file) in static/manual/. The
+# ℹ️ button opens the PDF in a window over the page, so the page and its drafts stay as they are.
+MANUAL_DIR = Path(__file__).resolve().parent / 'static' / 'manual'
+MANUAL_FILES = {
+    'pdf': ('user-manual.pdf', 'application/pdf', False),
+    'docx': ('user-manual.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', True),
+}
+
+
+def send_manual(kind):
+    name, mimetype, attachment = MANUAL_FILES[kind]
+    path = MANUAL_DIR / name
+    if not path.is_file():
+        return fail('The user manual (static/manual/' + name + ') is missing from this installation.', 404)
+    # inline PDF (shown by the browser), the .docx is downloaded; both get a readable file name
+    return send_file(path, mimetype=mimetype, as_attachment=attachment, max_age=300,
+                     download_name='jstal-tagger V' + VERSION + ' - User Manual.' + kind)
+
+
+@app.get('/manual.pdf')
+def manual_pdf():
+    return send_manual('pdf')
+
+
+@app.get('/manual.docx')
+def manual_docx():
+    return send_manual('docx')
+
+
 @app.get('/manual')
 def manual():
-    """The user manual (the book button in the header opens it in a new tab)."""
-    return render_template('manual.html', version=VERSION, wipe_phrase=WIPE_PHRASE, max_batch=MAX_BATCH,
-                           youtube_limit=lookups.youtube_daily_limit())
+    """Old address of the V2.1 HTML manual: bookmarks now open the PDF."""
+    return redirect('/manual.pdf', code=302)
 
 
 @app.get('/favicon.ico')
@@ -141,7 +216,11 @@ def favicon():
 def config():
     return jsonify(version=VERSION, writes_enabled=writes_enabled(), keep_backups=keep_backups(),
                    edit_mode_default=edit_mode_default(),
-                   music_root=str(ROOT), max_batch=MAX_BATCH, wipe_phrase=WIPE_PHRASE,
+                   music_root=str(ROOT), video_root=str(VIDEO_ROOT),
+                   libraries=[{'id': k, 'label': LIBRARY_LABELS[k], 'available': library_available(k),
+                               'writable': library_writable(k)} for k in LIBRARIES],
+                   file_types=list(tags.SUPPORTED),
+                   max_batch=MAX_BATCH, wipe_phrase=WIPE_PHRASE,
                    fields=list(tags.FIELDS), providers={k: [list(p) for p in v] for k, v in lookups.PROVIDERS.items()},
                    browser_only=sorted(lookups.BROWSER_ONLY), sources=lookups.providers_status(),
                    youtube_quota=lookups.youtube_quota())
@@ -153,18 +232,19 @@ def config():
 
 @app.get('/api/folders')
 def folders():
-    path = music_path(request.args.get('path', ''))
+    root = request_root()
+    path = music_path(request.args.get('path', ''), root)
     if not path.is_dir():
-        return fail('This folder does not exist or cannot be read.')
+        return fail('This folder does not exist or cannot be read.', 404)
     try:
         children = []
         for child in path.iterdir():
             try:
-                if not child.is_symlink() and child.is_dir() and child.resolve().is_relative_to(ROOT):
-                    children.append({'name': child.name, 'path': rel(child)})
+                if not child.is_symlink() and child.is_dir() and child.resolve().is_relative_to(root):
+                    children.append({'name': child.name, 'path': rel(child, root)})
             except OSError:
                 continue
-        return jsonify(path=rel(path), parent=None if path == ROOT else rel(path.parent),
+        return jsonify(path=rel(path, root), parent=None if path == root else rel(path.parent, root),
                        folders=sorted(children, key=lambda x: x['name'].casefold()))
     except OSError as exc:
         return fail(exc)
@@ -172,7 +252,8 @@ def folders():
 
 @app.get('/api/scan')
 def scan():
-    path = music_path(request.args.get('path', ''))
+    root = request_root()
+    path = music_path(request.args.get('path', ''), root)
     if not path.is_dir():
         return fail('Invalid folder.')
     recursive = request.args.get('recursive') == '1'
@@ -182,10 +263,10 @@ def scan():
             dirs[:] = sorted(d for d in dirs if not (Path(base) / d).is_symlink()) if recursive else []
             for name in files:
                 candidate = Path(base) / name
-                if (candidate.suffix.lower() == '.mp3' and not candidate.is_symlink()
-                        and candidate.resolve().is_relative_to(ROOT)):
+                if (candidate.suffix.lower() in tags.SUPPORTED and not candidate.is_symlink()
+                        and candidate.resolve().is_relative_to(root)):
                     found.append(candidate)
-        rows = [tags.read_song(ROOT, f) for f in sorted(found, key=lambda f: str(f).casefold())]
+        rows = [tags.read_song(root, f) for f in sorted(found, key=lambda f: str(f).casefold())]
         return jsonify(songs=rows, warnings=warnings)
     except OSError as exc:
         return fail(exc)
@@ -196,10 +277,12 @@ def refresh_songs():
     """Read some songs again (after a save)."""
     try:
         require_same_origin()
-        paths = (request.get_json() or {}).get('paths')
+        data = request.get_json() or {}
+        root = library_root(data.get('library', 'music'))
+        paths = data.get('paths')
         if not isinstance(paths, list) or len(paths) > MAX_BATCH:
             raise ValueError(f'At most {MAX_BATCH} songs at once.')
-        return jsonify(songs=[tags.read_song(ROOT, tags.checked_path(ROOT, p)) for p in paths])
+        return jsonify(songs=[tags.read_song(root, tags.checked_path(root, p)) for p in paths])
     except PermissionError as exc:
         return fail(exc, 403)
     except Exception as exc:
@@ -210,14 +293,19 @@ def refresh_songs():
 # 5. COVERS AND AUDIO
 # =============================================================================
 
+AUDIO_TYPES = {'.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.mp4': 'video/mp4', '.m4v': 'video/mp4'}
+
+
 @app.get('/api/audio')
 def audio():
-    """Pre-listen: stream one MP3 file of the music folder (read only). Range requests are
-    supported, so the browser can seek. Only real .mp3 files inside /music are served."""
-    path = music_path(request.args.get('path', ''))          # same rules as /api/cover
-    if path.suffix.lower() != '.mp3' or not path.is_file():
+    """Pre-listen: stream one MP3 / MP4 file of the library (read only). Range requests are
+    supported, so the browser can seek. Only real .mp3/.mp4/.m4a/.m4v files are served
+    (an MP4 video plays its sound in the player bar)."""
+    root = request_root()
+    path = music_path(request.args.get('path', ''), root)          # same rules as /api/cover
+    if path.suffix.lower() not in AUDIO_TYPES or not path.is_file():
         abort(404)
-    response = send_file(path, mimetype='audio/mpeg', conditional=True, download_name=path.name)
+    response = send_file(path, mimetype=AUDIO_TYPES[path.suffix.lower()], conditional=True, download_name=path.name)
     response.headers['Cache-Control'] = 'private, max-age=3600'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Content-Disposition'] = 'inline'
@@ -225,8 +313,9 @@ def audio():
 
 @app.get('/api/thumbnail')
 def thumbnail():
+    root = request_root()
     try:
-        path = tags.checked_path(ROOT, request.args.get('path', ''))
+        path = tags.checked_path(root, request.args.get('path', ''))
         st = path.stat()
         data = tags.thumbnail(str(path), st.st_mtime_ns, st.st_size)
     except Exception:
@@ -238,8 +327,9 @@ def thumbnail():
 
 @app.get('/api/cover')
 def cover():
-    path = music_path(request.args.get('path', ''))
-    if path.suffix.lower() != '.mp3' or not path.is_file():
+    root = request_root()
+    path = music_path(request.args.get('path', ''), root)
+    if path.suffix.lower() not in tags.SUPPORTED or not path.is_file():
         abort(404)
     found = tags.embedded_cover(path)
     if not found:
@@ -270,10 +360,11 @@ def lookup():
         known = [p for p, _ in lookups.PROVIDERS.get(field, [])]
         if provider not in known or provider in lookups.BROWSER_ONLY:
             raise ValueError('Unsupported lookup source for this field.')
-        path = tags.inside(ROOT, data.get('path') if isinstance(data.get('path'), str) else '')
-        if not path.is_file() or path.suffix.lower() != '.mp3':
-            raise ValueError('Invalid MP3 file.')
-        meta = tags.read_song(ROOT, path)
+        root = library_root(data.get('library', 'music'))
+        path = tags.inside(root, data.get('path') if isinstance(data.get('path'), str) else '')
+        if not path.is_file() or path.suffix.lower() not in tags.SUPPORTED:
+            raise ValueError('Invalid MP3 / MP4 file.')
+        meta = tags.read_song(root, path)
         if meta.get('error'):
             raise ValueError(meta['error'])
         overrides = data.get('metadata') or {}
@@ -341,6 +432,8 @@ def prepare():
         fields = data.get('fields') or []
         if action == 'wipe' and (not isinstance(fields, list) or not fields or any(f not in tags.FIELDS for f in fields)):
             raise ValueError('Choose at least one field to wipe.')
+        library = data.get('library', 'music')
+        root = library_root(library)
         with lock:
             if busy():
                 raise ValueError('A save or wipe is still running.')
@@ -350,7 +443,8 @@ def prepare():
             if not isinstance(relative, str) or relative in seen:
                 raise ValueError('Invalid or duplicate song.')
             seen.add(relative)
-            path = tags.checked_path(ROOT, relative)
+            path = tags.checked_path(root, relative)
+            kind = tags.file_kind(path)
             source = tags.fingerprint(path)
             claimed = spec.get('source') or {}
             # SHA-256 + size identify the listed file (a browser cannot keep nanosecond times exactly)
@@ -358,15 +452,21 @@ def prepare():
                 raise ValueError('File changed since it was listed. List the folder again: ' + relative)
             current = tags.read_tags(path)
             if action == 'wipe':
-                if 'other' in fields and tags.has_apev2(path):
-                    raise ValueError('APEv2 tags found (not ID3). This wipe refuses the file rather than '
-                                     'leave hidden tags behind: ' + relative)
+                # V2.3: an APEv2 tag that only holds mp3rgain / ReplayGain values is kept as it is;
+                # other APEv2 items cannot be wiped (only ID3 is written), so such a file is refused.
+                other_ape = tags.ape_other_items(path) if kind == 'mp3' and 'other' in fields else []
+                if other_ape:
+                    raise ValueError('APEv2 tags found that are not ReplayGain values (' + ', '.join(other_ape[:8])
+                                     + '). This wipe refuses the file rather than leave hidden tags behind: ' + relative)
                 operation = {'action': 'wipe', 'fields': [f for f in tags.FIELDS if f in fields]}
             else:
-                operation = {'action': 'save', 'values': tags.validate_values(spec.get('values'))}
-            items.append({'path': relative, 'source': source, 'operation': operation,
-                          'summary': tags.plan_summary(current, operation),
-                          'warnings': tags.plan_warnings(operation)})
+                try:
+                    operation = {'action': 'save', 'values': tags.validate_values(spec.get('values'), kind)}
+                except ValueError as exc:
+                    raise ValueError(str(exc) + ' (' + relative + ')') from None
+            items.append({'path': relative, 'library': library, 'source': source, 'operation': operation,
+                          'summary': tags.plan_summary(current, operation, kind, path),
+                          'warnings': tags.plan_warnings(operation, kind)})
         with lock:
             now = time.monotonic()
             for token in [t for t, p in plans.items() if now > p['expires']]:
@@ -374,8 +474,10 @@ def prepare():
             if len(plans) >= MAX_PLANS:
                 raise ValueError('Too many prepared plans. Cancel them or wait 30 minutes.')
             token = secrets.token_urlsafe(32)
-            plans[token] = {'action': action, 'items': items, 'expires': now + PLAN_SECONDS}
-        return jsonify(token=token, action=action, enabled=writes_enabled(), expires_in_seconds=PLAN_SECONDS,
+            plans[token] = {'action': action, 'library': library, 'items': items, 'expires': now + PLAN_SECONDS}
+        writable = library_writable(library)
+        return jsonify(token=token, action=action, enabled=writes_enabled() and writable,
+                       read_only_reason='' if writable else read_only_reason(library), expires_in_seconds=PLAN_SECONDS,
                        items=[{'path': i['path'], 'changes': i['summary'], 'warnings': i['warnings']} for i in items])
     except PermissionError as exc:
         return fail(exc, 403)
@@ -401,14 +503,16 @@ def worker(plan):
     try:
         batch = plan['action'] + '-' + time.strftime('%Y%m%d-%H%M%S') + '-' + secrets.token_hex(4)
         backup_root = BACKUP_ROOT.resolve()
-        if backup_root.is_relative_to(ROOT) or ROOT.is_relative_to(backup_root):
-            raise ValueError('The backup folder must be separate from the music folder.')
+        root = library_root(plan.get('library', 'music'))
+        if backup_root.is_relative_to(root) or root.is_relative_to(backup_root):
+            raise ValueError('The backup folder must be separate from the music and video folders.')
         batch_dir = backup_root / batch
         batch_dir.mkdir(parents=True, exist_ok=False)
         report_file = batch_dir / 'write-report.json'
 
         def report():
             document = {'version': VERSION, 'action': plan['action'], 'batch': batch,
+                        'library': plan.get('library', 'music'), 'library_root': str(root),
                         'approved_items': [{'path': i['path'], 'changes': i['summary'], 'warnings': i['warnings']}
                                            for i in plan['items']],
                         'results': results}
@@ -424,7 +528,7 @@ def worker(plan):
             job.update(batch=batch, report_file=str(report_file))
         for item in plan['items']:
             try:
-                entry = tags.write_one(ROOT, backup_root, item, batch)
+                entry = tags.write_one(root, backup_root, item, batch)
             except Exception as exc:
                 entry = {'path': item['path'], 'status': 'failed', 'error': str(exc)}
             results.append(entry)
@@ -465,9 +569,12 @@ def apply():
                     raise ValueError('The confirmation text does not match.')
             elif data.get('confirmed') is not True:
                 raise ValueError('Confirm the save first.')
+            if not library_writable(plan.get('library', 'music')):
+                raise ValueError(read_only_reason(plan.get('library', 'music')))
             plans.pop(token)
             job.clear()
-            job.update(state='running', action=plan['action'], batch='', results=[], report_file='', error='',
+            job.update(state='running', action=plan['action'], library=plan.get('library', 'music'),
+                       batch='', results=[], report_file='', error='',
                        started=time.strftime('%Y-%m-%d %H:%M:%S'), finished='', total=len(plan['items']))
         threading.Thread(target=worker, args=(plan,), daemon=True).start()
         return jsonify(started=True), 202

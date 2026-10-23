@@ -1,4 +1,4 @@
-# jstal-tagger V2.1 - all settings are in .env (see .env.example)
+# jstal-tagger V2.3 - all settings are in .env (see .env.example)
 services:
   jstal-tagger:
     build:
@@ -10,6 +10,7 @@ services:
       - "5080:5080"
     environment:
       MUSIC_ROOT: /music
+      VIDEO_ROOT: /videos
       BACKUP_ROOT: /backups
       LOOKUP_USER_AGENT: "${LOOKUP_USER_AGENT:?Set LOOKUP_USER_AGENT in .env with your real contact}"
       ENABLE_TAG_WRITES: "${ENABLE_TAG_WRITES:-false}"
@@ -28,6 +29,13 @@ services:
         source: ${MUSIC_HOST_PATH:?Set MUSIC_HOST_PATH in .env}
         target: /music
         read_only: ${MUSIC_READ_ONLY:-true}
+        bind:
+          create_host_path: false
+      # V2.3: the video folder (MP4 / M4A / M4V), shown as "Videos" next to "Music"
+      - type: bind
+        source: ${VIDEO_HOST_PATH:?Set VIDEO_HOST_PATH in .env (V2.3), for example /srv/videos}
+        target: /videos
+        read_only: ${VIDEO_READ_ONLY:-true}
         bind:
           create_host_path: false
       - type: bind
