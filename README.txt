@@ -1,40 +1,52 @@
-JSTAL-TAGGER V2.1 - MP3 TAG MAINTENANCE
-=======================================
+JSTAL-TAGGER V2.3 - MP3 & MP4 TAG MAINTENANCE
+=============================================
 
-A small web application to check and maintain the tags of the MP3 files in a music folder
-on the server: browse folders, list the songs with their tags, listen to a song, edit tags
-(with online lookups for year, cover, comment, YouTube link and lyrics) and wipe tags. It
-runs in Docker on port 5080. There is no login: use it on your own network only, never on
-the internet.
+A small web application to check and maintain the tags of the MP3 and MP4 files in a music
+folder and a video folder on the server: browse folders, list the files with their tags,
+listen to a file, edit tags (with online lookups for year, cover, comment, YouTube link and
+lyrics) and wipe tags. ReplayGain values (volume normalisation with mp3rgain) are shown and
+never removed. It runs in Docker on port 5080. There is no login: use it on your own
+network only, never on the internet.
 
-What changed since V2: see CHANGES-V2.1.md. Since V1: CHANGES-V2.md.
-The full user manual is built into the app: the book button (top right) or http://<server>:5080/manual.
-A PDF copy is next to this file.
+What changed since V2.2: see CHANGES-V2.3.md. Since V2.1: CHANGES-V2.2.md. Since V2:
+CHANGES-V2.1.md. Since V1: CHANGES-V2.md.
+The user manual is built into the app: the ℹ️ button (top right) shows it in a window over the
+page (or open http://<server>:5080/manual.pdf). The same manual is next to this file as
+"jstal-tagger V2.3 - User Manual.pdf" and ".docx".
 
 
 FILES
 -----
   app.py                 web server: pages, folders, songs, audio, lookups, save / wipe jobs
-  tags.py                reading and safely writing the MP3 tags (+ self-test)
+  tags.py                reading and safely writing the MP3 / MP4 tags, ReplayGain (+ self-test)
   lookups.py             MusicBrainz, Cover Art Archive, Wikipedia, Discogs, LRCLIB, Megalobiz,
                          YouTube (+ the daily YouTube counter)
   templates/index.html   the page (markup only)
-  templates/manual.html  the user manual (served at /manual)
   static/app.js          everything the page does
   static/style.css       the look (dark and light theme)
   static/MP3Tag.png      logo, static/favicon.ico  browser icon
+  static/manual/         the user manual the app shows: user-manual.pdf (/manual.pdf) and
+                         user-manual.docx (/manual.docx). Same files as the two
+                         "jstal-tagger V2.3 - User Manual" files in this folder.
+  jstal-tagger V2.3 - User Manual.docx / .pdf   the user manual (Word / PDF)
   Dockerfile, docker-compose.yml, requirements.txt, .env.example
 
 
-INSTALL / UPDATE FROM V2
-------------------------
-1. Back up the V2 application folder, including .env.
+INSTALL / UPDATE FROM V2.2 (or V2.1 / V2)
+-----------------------------------------
+1. Back up the current application folder, including .env.
 2. Replace the application files with the files of this folder (app.py, tags.py, lookups.py,
-   templates/, static/, Dockerfile, docker-compose.yml, requirements.txt).
-   Keep your own .env. New optional settings (see below): EDIT_MODE_DEFAULT,
-   YOUTUBE_DAILY_LIMIT, MEGALOBIZ_API_KEY. Nothing in .env has to change.
-3. docker compose up -d --build --force-recreate
-4. Ctrl+F5 in the browser (http://<server>:5080).
+   templates/, static/ including static/manual/, Dockerfile, docker-compose.yml,
+   requirements.txt). From V2.1: templates/manual.html is no longer used (delete it).
+3. Add to your .env (V2.3, REQUIRED - docker compose refuses to start without it):
+      VIDEO_HOST_PATH=/srv/videos
+      VIDEO_READ_ONLY=true        (false = the videos can be tagged; also needs ENABLE_TAG_WRITES=true)
+   Optionally set LOOKUP_USER_AGENT to jstal-tagger/2.3. Coming from V2: the optional V2.1
+   settings are EDIT_MODE_DEFAULT, YOUTUBE_DAILY_LIMIT and MEGALOBIZ_API_KEY.
+4. docker compose down
+   docker compose up -d --build
+5. Ctrl+F5 in the browser (http://<server>:5080).
+See CHANGES-V2.3.md for the details and how to roll back.
 
 Updating from V1: follow the V2 instructions in CHANGES-V2.md first (remove the old V1
 Python files and static/stage1.js).
@@ -42,21 +54,26 @@ Python files and static/stage1.js).
 Check on the server (nothing is written):
   docker compose run --rm --no-deps --entrypoint python jstal-tagger -c "import app; print('Application imports successfully.')"
   docker compose run --rm --no-deps --entrypoint python jstal-tagger tags.py --self-test "/music/SOME SONG.mp3"
-The self-test writes only a temporary copy, never the song itself.
+  docker compose run --rm --no-deps --entrypoint python jstal-tagger tags.py --self-test "/videos/SOME VIDEO.mp4"
+The self-test writes only a temporary copy, never the file itself (MP3 or MP4).
 
 
 SETTINGS (.env)
 ---------------
-  MUSIC_HOST_PATH        music folder on the server (mounted as /music)
-  BACKUP_HOST_PATH       backup folder on the server, OUTSIDE the music folder (/backups)
+  MUSIC_HOST_PATH        music folder on the server (mounted as /music, "Music" in the page)
+  VIDEO_HOST_PATH        (V2.3, required) video folder on the server (mounted as /videos,
+                         "Videos" in the page)
+  BACKUP_HOST_PATH       backup folder on the server, OUTSIDE the music and video folders (/backups)
   ENABLE_TAG_WRITES      false = read-only (default). true + MUSIC_READ_ONLY=false = writing on
+                         in Music; true + VIDEO_READ_ONLY=false = writing on in Videos
   MUSIC_READ_ONLY        true (default) mounts the music folder read-only
+  VIDEO_READ_ONLY        (V2.3) true (default) mounts the video folder read-only
   KEEP_BACKUPS           false (default): the backups of a save in which every file was saved
                          and verified are removed afterwards. Wipe backups and saves with a
                          failed file are always kept. true = keep every backup.
   EDIT_MODE_DEFAULT      true (default, V2.1): the page starts with "Edit tags" switched on.
                          false = start switched off (as in V2). Editing only makes drafts.
-  LOOKUP_USER_AGENT      required: "jstal-tagger/2.1 (mailto:you@example.com)"
+  LOOKUP_USER_AGENT      required: "jstal-tagger/2.3 (mailto:you@example.com)"
   YOUTUBE_API_KEY        YouTube Data API key (empty = YouTube lookup off)
   YOUTUBE_REGION         two letters, default BE
   YOUTUBE_PREFERRED_CHANNELS  channel names ranked higher, separated by |
@@ -67,18 +84,36 @@ SETTINGS (.env)
   MEGALOBIZ_API_KEY      optional (V2.1). Megalobiz works without a key (30 requests a
                          minute, 1000 a day); a free key raises that to 300 / 20 000.
 
-The header shows "Writing on" or "Read-only" and, when a YouTube key is set, the YouTube
-counter. Discogs / YouTube without a key are shown as "not configured" in the tag editor.
+The header shows "Writing on" or "Read-only" (for the library that is open) and, when a
+YouTube key is set, the YouTube counter. Discogs / YouTube without a key are shown as "not configured" in the tag editor.
 
 
 USING IT
 --------
-Folders     Click a folder chip to open it, the breadcrumb or ↑ to go back. "List MP3
-            files" reads the songs (tick "Include subfolders" to include all sub-folders).
+Libraries   (V2.3) "🎵 Music" and "🎬 Videos" (top left) switch between the two folders.
+            Both list .mp3, .mp4, .m4a and .m4v files. The browser remembers the last
+            library, folder and "Include subfolders": the next visit opens there again
+            (click "List files" to read it). A folder that no longer exists opens the top
+            of that library.
+Folders     Click a folder chip to open it, the breadcrumb or ↑ to go back. "List files"
+            reads the files (tick "Include subfolders" to include all sub-folders).
 Grid        Click a column title to sort. "Filter loaded songs" shows only songs that
             contain all typed words. "Columns" hides columns (remembered by the browser).
-            Click a filename for all its ID3 tags, the number under "Other tags" for the
-            frames without a column, a cover to see it large.
+            Click a filename for all its tags (ID3 or MP4), the number under "Other tags"
+            for the tags without a column, a cover to see it large. "Type" shows MP3, MP4,
+            M4A or M4V.
+ReplayGain  (V2.3, read only) "RG gain" and "RG peak" show the ReplayGain track values that
+            mp3rgain (or another normaliser) stored. 🎚️ in front of the gain = mp3rgain
+            changed the volume inside the file (it stored undo information); the gain is
+            then only the small rest (less than 0.75 dB). Without 🎚️ only the tags were
+            written (--tags-only). Click the value for all ReplayGain values and where
+            they are stored (ID3, APEv2 or MP4). These values can not be edited, and
+            Save / Wipe never remove or change them.
+MP4 files   (V2.3) Edited like MP3 files, with the iTunes-style MP4 tags (Artist ©ART,
+            Title ©nam, Album ©alb, Year ©day, BPM tmpo, Track trkn, Genre ©gen, Cover covr,
+            Lyrics ©lyr, YouTube URL tvsh, VIDEO ----:com.apple.iTunes:VIDEO, Comment ©cmt).
+            An MP4 file has no stored duration (TLEN): that cell cannot be edited; BPM is a
+            whole number. A video plays its sound in the player bar.
 Listening   (V2.1) Click ▶ in the "Listen" column: a player bar appears above the grid
             (play / pause, position, volume). The same button pauses; ✕ closes the player.
             The tag editor has a "▶ Listen" button too. Listening never changes a file.
@@ -112,14 +147,21 @@ Wiping      Select songs, "Wipe tags…", tick the fields to remove (Artist, Tit
             every field, "Default choice" restores the default), "Prepare wipe…". The
             window lists the exact ID3 frames per song. (V2.1) The confirmation text
             WIPE SELECTED TAGS is already filled in: check the list and click "Wipe these
-            tags". "Other tags" removes every frame without a column (URLs, key,
-            ReplayGain, custom TXXX, unknown frames). Save or discard drafts first.
+            tags". "Other tags" removes every tag without a column (URLs, key, disc number,
+            rating, compilation, custom TXXX, unknown frames), but (V2.3) never the
+            ReplayGain / mp3rgain values: the window lists them under "Kept". Save or
+            discard drafts first.
 Report      "Last report" shows the result per file of the last save or wipe since the
             container started (download as JSON). The full report of a kept batch is
             BACKUP_ROOT/<batch>/write-report.json.
 Export      "Export selected" downloads the tags of the selected songs as JSON.
-Manual      (V2.1) The book button in the header opens the user manual in a new tab
-            (/manual); "Print / save as PDF" is on that page.
+Manual      (V2.2) The ℹ️ button in the header shows the user manual (PDF) in a window
+            over the page. Close it with ✕, Esc or a click outside the window: you are
+            back on the same page, with your selection and drafts. "Open in new tab"
+            shows the PDF in its own tab, "Download .docx" gives the Word file.
+            /manual (the V2.1 address) opens the PDF. To change the manual: edit the
+            .docx, save it as PDF too, copy both to static/manual/ as user-manual.docx
+            and user-manual.pdf and rebuild (docker compose up -d --build).
 
 
 THE YOUTUBE COUNTER (V2.1)
@@ -147,17 +189,27 @@ SAFETY
   A failure leaves the original untouched (the failed attempt is kept next to the backup).
 - Several values in one ID3v2.3 frame (for example two artists) stay as they are.
 - A failure is per file: other files of the same batch can still be saved.
-- Only ID3v2.3 / ID3v2.4 (and untagged) files. ID3v1 copies of changed fields are updated.
-  A wipe of "Other tags" refuses files with APEv2 tags (not ID3).
-- Refused: symlinks, hard-linked files, files larger than 512 MiB, paths outside /music.
+- MP3: only ID3v2.3 / ID3v2.4 (and untagged) files. ID3v1 copies of changed fields are
+  updated. The APEv2 tag (where mp3rgain keeps its undo information) is never written;
+  a wipe of "Other tags" refuses a file whose APEv2 tag holds other items than ReplayGain
+  / mp3rgain values.
+- MP4 (V2.3): only the tag box changes; the media data (audio and video) is checked
+  byte-for-byte, and duration, channels and sample rate must stay the same.
+- ReplayGain values (TXXX:REPLAYGAIN_*, MP3GAIN_*, RVA2, iTunNORM, the APEv2 tag, MP4
+  replaygain_* / mp3rgain_*) are compared before the original is replaced: a change refuses
+  the file.
+- Refused: symlinks, hard-linked files, files larger than 512 MiB, paths outside /music
+  and /videos.
 - Covers are only downloaded from HTTPS artwork sites (Cover Art Archive / archive.org,
   Discogs images).
-- Listening (/api/audio) streams only real .mp3 files inside /music, read-only.
+- Listening (/api/audio) streams only real .mp3/.mp4/.m4a/.m4v files inside /music or
+  /videos, read-only.
 - Changes and lookups are only accepted from the page itself (same-origin check).
 - One save or wipe at a time. Do not move or edit the files with another program while
   a save runs, and do not stop the container during a save.
 - Wipes are always backed up.
 
-RESTORE (manual): stop the container, take the backup from BACKUP_HOST_PATH/<batch>/<path>
-(see write-report.json), copy it back over the song, start the container and list the
-folder again. There is no restore button.
+RESTORE (manual): stop the container, take the backup from
+BACKUP_HOST_PATH/<batch>/music/<path> or BACKUP_HOST_PATH/<batch>/videos/<path> (V2.3; see
+write-report.json), copy it back over the file, start the container and list the folder
+again. There is no restore button. (Batches made by V2.2 or older have no music/ level.)

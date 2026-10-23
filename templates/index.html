@@ -12,11 +12,12 @@
 		try { document.documentElement.dataset.theme = localStorage.getItem('jstal-theme') || localStorage.getItem('songprep-theme') || 'dark'; } catch (e) { document.documentElement.dataset.theme = 'dark'; }
 	</script>
 
+
 <!--[if gte mso 9]><xml>
 <mso:CustomDocumentProperties>
-<mso:_dlc_DocId msdt:dt="string">EHPN5AN47N7D-53656773-878</mso:_dlc_DocId>
-<mso:_dlc_DocIdItemGuid msdt:dt="string">a9b89e7f-26c3-4862-9fba-8b1e4fbea8a5</mso:_dlc_DocIdItemGuid>
-<mso:_dlc_DocIdUrl msdt:dt="string">https://powerbyteit.sharepoint.com/sites/PowerByte/_layouts/15/DocIdRedir.aspx?ID=EHPN5AN47N7D-53656773-878, EHPN5AN47N7D-53656773-878</mso:_dlc_DocIdUrl>
+<mso:_dlc_DocId msdt:dt="string">EHPN5AN47N7D-53656773-1518</mso:_dlc_DocId>
+<mso:_dlc_DocIdItemGuid msdt:dt="string">02b2aec8-38e4-4574-88cd-c4cea0522e51</mso:_dlc_DocIdItemGuid>
+<mso:_dlc_DocIdUrl msdt:dt="string">https://powerbyteit.sharepoint.com/sites/PowerByte/_layouts/15/DocIdRedir.aspx?ID=EHPN5AN47N7D-53656773-1518, EHPN5AN47N7D-53656773-1518</mso:_dlc_DocIdUrl>
 </mso:CustomDocumentProperties>
 </xml><![endif]-->
 </head>
@@ -28,26 +29,29 @@
 		<img src="/static/MP3Tag.png" alt="">
 		<div>
 			<h1>jstal-tagger</h1>
-			<span class="subtitle">MP3 tag maintenance · V{{ version }}</span>
+			<span class="subtitle">MP3 &amp; MP4 tag maintenance · V{{ version }}</span>
 		</div>
 	</div>
 	<span id="write-badge" class="badge" title="">…</span>
 	<span id="yt-quota" class="badge quota" title="" hidden>YouTube …</span>
 	<div class="header-tools">
 		<time id="clock"></time>
-		<a id="manual-btn" class="icon-btn" href="/manual" target="_blank" rel="noopener" title="User manual (opens in a new tab)" aria-label="User manual">📖</a>
+		<!-- V2.2: opens the manual (PDF) in a window over this page; the link itself is the fallback without script -->
+		<a id="manual-btn" class="icon-btn" href="/manual.pdf?v={{ version }}" target="_blank" rel="noopener" title="User manual" aria-label="User manual">ℹ️</a>
 		<button id="theme-toggle" class="icon-btn" type="button" title="Switch theme" aria-label="Switch theme">☀</button>
 	</div>
 </header>
 
 <!-- ============================ FOLDERS ============================ -->
-<section class="card folder-bar" aria-label="Music folders">
+<section class="card folder-bar" aria-label="Music and video folders">
 	<div class="folder-row">
+		<!-- V2.3: 🎵 Music / 🎬 Videos (filled by app.js) -->
+		<div id="libraries" class="libraries" role="group" aria-label="Library"></div>
 		<button id="up" class="icon-btn" type="button" title="Parent folder" aria-label="Parent folder">↑</button>
 		<nav id="breadcrumb" class="breadcrumb" aria-label="Current folder"></nav>
 		<span class="spacer"></span>
 		<label class="check"><input id="recursive" type="checkbox"> Include subfolders</label>
-		<button id="scan" class="primary" type="button">List MP3 files</button>
+		<button id="scan" class="primary" type="button" title="List the MP3 and MP4 files (.mp3, .mp4, .m4a, .m4v) of this folder">List files</button>
 	</div>
 	<div id="folders" class="folder-chips"></div>
 </section>
@@ -56,7 +60,7 @@
 <main class="card songs">
 	<div class="toolbar">
 		<div class="tool-group">
-			<input id="filter" type="search" placeholder="Filter loaded songs…" aria-label="Filter loaded songs">
+			<input id="filter" type="search" placeholder="Filter loaded files…" aria-label="Filter loaded files">
 			<button id="select-all" type="button">Select all</button>
 			<button id="select-none" type="button">Deselect all</button>
 		</div>
@@ -88,14 +92,15 @@
 			<thead><tr id="headers"></tr></thead>
 			<tbody id="rows"></tbody>
 		</table>
-		<div id="empty" class="empty-state">Choose a folder and click <b>List MP3 files</b>.</div>
+		<div id="empty" class="empty-state">Choose a folder and click <b>List files</b>.</div>
 	</div>
 	<p class="hint">
 		Tick songs to select them. Make sure <b>Edit tags</b> is ON.     |
 		Double-click a cell (or press Enter) to edit it.     |  
 		Yellow cells are drafts, you still have to <b>SAVE</b> them.     | 
 		Click on a filename to view all its tags.     |
-		Press ▶ to listen to a song.
+		Press ▶ to listen to a song.     |
+		🎚️ = normalised with mp3rgain (ReplayGain values are read only and never wiped).
 	</p>
 </main>
 
@@ -142,8 +147,10 @@
 	</form>
 	<p id="wipe-count"></p>
 	<p class="muted">Ticked fields are removed from the selected songs. Unticked fields are protected.
-		<b>Other tags</b> means every ID3 frame that has no column (URLs, key, ReplayGain, custom TXXX …).
-		<b>Duration</b> only removes the stored TLEN value; the audio does not change.</p>
+		<b>Other tags</b> means every tag that has no column (ID3 frames / MP4 atoms: URLs, key, disc number,
+		rating, compilation, custom TXXX …).
+		<b>Duration</b> only removes the stored TLEN value (MP3); the audio does not change.<br>
+		🎚️ The <b>ReplayGain / mp3rgain</b> values (gain, peak and the undo information) are <b>always kept</b>.</p>
 	<div class="wipe-quick">
 		<button id="wipe-all" type="button" title="Tick every field, also Artist, Title and Album">Select all</button>
 		<button id="wipe-none" type="button" title="Untick every field">Deselect all</button>
@@ -203,6 +210,24 @@
 		<button id="columns-all" type="button">Show all</button>
 		<span class="spacer"></span>
 		<button id="columns-close" class="primary" type="button">Done</button>
+	</div>
+</dialog>
+
+<!-- ============================ USER MANUAL (V2.2) ============================ -->
+<dialog id="manual-dialog" class="manual-dialog" aria-labelledby="manual-title">
+	<div class="dialog-head">
+		<h2 id="manual-title">User manual <span class="muted">· V{{ version }}</span></h2>
+		<a id="manual-newtab" class="link-btn" href="/manual.pdf?v={{ version }}" target="_blank" rel="noopener" title="Show the PDF in its own browser tab">Open in new tab</a>
+		<a id="manual-docx" class="link-btn" href="/manual.docx?v={{ version }}" download title="Download the manual as a Word file">Download .docx</a>
+		<button id="manual-close" class="icon-btn" type="button" title="Close (Esc)" aria-label="Close">✕</button>
+	</div>
+	<div class="manual-view">
+		<iframe id="manual-frame" title="User manual (PDF)"></iframe>
+		<div id="manual-fallback" class="manual-fallback" hidden>
+			<p>This browser cannot show a PDF inside the page.</p>
+			<p><a href="/manual.pdf?v={{ version }}" target="_blank" rel="noopener">Open the manual (PDF) in a new tab</a> or
+				<a href="/manual.docx?v={{ version }}" download>download it as a Word file</a>.</p>
+		</div>
 	</div>
 </dialog>
 

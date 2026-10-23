@@ -1,6 +1,6 @@
 /**
  * ==================================================================================
- * jstal-tagger - page program (app.js)                                         V2.1
+ * jstal-tagger - page program (app.js)                                         V2.3
  * ==================================================================================
  * Everything the page does. The server (app.py) reads and writes the MP3 files; this
  * file shows them and keeps your edits as DRAFTS in the browser until you save them.
@@ -8,7 +8,7 @@
  *   1. Helpers            short functions used everywhere
  *   2. Settings           columns, fields, what this browser remembers
  *   3. State              loaded songs, selection, drafts, running job
- *   4. Header             clock, theme, write status badge, YouTube counter
+ *   4. Header             clock, theme, write status badge, YouTube counter, user manual
  *   5. Folders            breadcrumb, sub-folders, listing the MP3 files
  *   6. Grid               columns, sorting, filtering, selecting, rows
  *   6b. Pre-listen        play a song in the browser (the ▶ buttons and the player bar)
@@ -21,6 +21,10 @@
  * V2: replaces stage1.js and the Stage 2 / Stage 3 scripts of V1's index.html.
  * V2.1: edit mode at start, pre-listen, YouTube daily counter, Select all / Deselect all
  * in the Wipe window, prefilled wipe phrase, user manual button, Megalobiz lyrics source.
+ * V2.2: the user manual is a PDF shown in a window over the page (no second app tab).
+ * V2.3: two libraries (🎵 Music and 🎬 Videos), MP4 / M4A / M4V files next to MP3 files,
+ * read-only ReplayGain columns (RG gain, RG peak) and details, and the last library, folder
+ * and "Include subfolders" are remembered by this browser.
  */
 'use strict';
 
@@ -63,6 +67,8 @@ async function readJson(response) {
 }
 
 const apiGet = url => fetch(url).then(readJson);
+/** V2.3: the library parameter for the GET addresses of a file or folder. */
+const lib = () => 'library=' + encodeURIComponent(state.library);
 const apiPost = (url, data) => fetch(url, {
 	method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
 }).then(readJson);
@@ -103,6 +109,7 @@ const store = {
 // key = song property shown, field = tag field it edits / wipes (null = not a tag)
 const COLUMNS = [
 	{key: 'filename', label: 'Filename', field: null},
+	{key: 'type', label: 'Type', field: null, tip: 'File type: MP3, MP4, M4A or M4V.'},
 	{key: 'listen', label: 'Listen', field: null, tip: 'Play the song in the browser (pre-listen). Nothing is changed.'},
 	{key: 'artist', label: 'Artist', field: 'artist'},
 	{key: 'title', label: 'Title', field: 'title'},
@@ -111,6 +118,10 @@ const COLUMNS = [
 	{key: 'bpm', label: 'BPM', field: 'bpm'},
 	{key: 'duration', label: 'Duration', field: 'length',
 		tip: 'Measured audio duration. Editing changes only the stored TLEN value (milliseconds).'},
+	{key: 'rg_gain', label: 'RG gain', field: null,
+		tip: 'ReplayGain track gain (read only). 🎚️ = mp3rgain changed the volume inside the file; the value is the small rest. '
+			+ 'Never removed by a save or a wipe. Click for all ReplayGain values.'},
+	{key: 'rg_peak', label: 'RG peak', field: null, tip: 'ReplayGain track peak (read only, 1.0 = full scale).'},
 	{key: 'track', label: 'Track', field: 'track'},
 	{key: 'genre', label: 'Genre', field: 'genre'},
 	{key: 'cover', label: 'Cover', field: 'cover'},
@@ -118,7 +129,7 @@ const COLUMNS = [
 	{key: 'tvshow', label: 'YouTube URL (TVSHOW)', field: 'tvshow'},
 	{key: 'video', label: 'VIDEO', field: 'video'},
 	{key: 'comment', label: 'Comment', field: 'comment'},
-	{key: 'other', label: 'Other tags', field: 'other', tip: 'Number of ID3 frames without a column. Click for the list.'},
+	{key: 'other', label: 'Other tags', field: 'other', tip: 'Number of tags without a column (ID3 frames / MP4 atoms). Click for the list.'},
 	{key: 'path', label: 'Relative path', field: null},
 	{key: 'error', label: 'Read error', field: null},
 ];
@@ -133,6 +144,8 @@ const DEFAULT_WIPE = ['year', 'bpm', 'length', 'track', 'genre', 'cover', 'lyric
 const LOOKUP_FIELDS = new Set(['cover', 'year', 'comment', 'tvshow', 'lyrics']);
 const MAX_SOURCE_IMAGE = 25 * 1024 * 1024;   // picture chosen on this computer
 const COVER_SIZE = 600;
+const LIBRARY_ICONS = {music: '🎵', videos: '🎬'};
+const LAST_LOCATION = 'jstal-last-location';     // V2.3: {library, path, recursive} of this browser
 
 
 // =============================================================================
@@ -141,6 +154,7 @@ const COVER_SIZE = 600;
 
 const state = {
 	config: {writes_enabled: false, edit_mode_default: true, max_batch: 100, wipe_phrase: 'WIPE SELECTED TAGS', providers: {}, sources: {}},
+	library: 'music',                  // V2.3: 'music' or 'videos'
 	path: '', parent: null, listedPath: null,
 	songs: [], byPath: new Map(),
 	selected: new Set(),
@@ -170,17 +184,58 @@ function setTheme(theme) {
 }
 $('theme-toggle').onclick = () => setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
 
+/* V2.2: the user manual (a PDF) opens in a window over this page. V2.1 opened manual.html in a
+   new tab, and its "Back to the app" link loaded a SECOND copy of the app in that tab. Now the
+   page, its selection and its drafts simply stay where they are: close the window and go on. */
+function openManual() {
+	const frame = $('manual-frame');
+	// navigator.pdfViewerEnabled: Chrome / Edge 94+, Firefox 99+, Safari 16.4+ (older browsers: assume yes).
+	// Without a PDF viewer (some phones) the window offers the links instead of downloading the file.
+	const canShow = navigator.pdfViewerEnabled !== false;
+	frame.hidden = !canShow;
+	$('manual-fallback').hidden = canShow;
+	if (canShow && !frame.getAttribute('src')) frame.src = $('manual-btn').getAttribute('href');   // loaded once, keeps its page
+	$('manual-dialog').showModal();
+	$('manual-close').focus();
+}
+function closeManual() { if ($('manual-dialog').open) $('manual-dialog').close(); }
+
+$('manual-btn').onclick = event => {
+	if (event.ctrlKey || event.metaKey || event.shiftKey || event.button !== 0) return;   // Ctrl+click: own tab, as a link
+	event.preventDefault();
+	openManual();
+};
+$('manual-close').onclick = closeManual;
+$('manual-newtab').onclick = closeManual;           // the browser still opens the PDF in a new tab
+$('manual-dialog').addEventListener('click', event => {
+	// a click on the dark area around the window closes it (Esc closes it too)
+	if (event.target !== $('manual-dialog')) return;
+	const box = $('manual-dialog').getBoundingClientRect();
+	if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) closeManual();
+});
+$('manual-frame').addEventListener('load', () => {
+	// Esc while the PDF has the focus (works where the browser lets the page see the key)
+	try { $('manual-frame').contentWindow.addEventListener('keydown', e => { if (e.key === 'Escape') closeManual(); }); }
+	catch (e) { /* the PDF viewer does not allow it: use ✕ or click outside */ }
+});
+
 function tick() { $('clock').textContent = new Date().toLocaleTimeString(undefined, {hour12: false}); }
 setInterval(tick, 1000);
 
 function showWriteBadge() {
-	const on = state.config.writes_enabled;
+	// V2.3: per library (Music and Videos each have their own read-only setting)
+	const library = (state.config.libraries || []).find(l => l.id === state.library);
+	const folderWritable = !library || library.writable !== false;
+	const on = state.config.writes_enabled && folderWritable;
 	const badge = $('write-badge');
 	badge.textContent = on ? 'Writing on' : 'Read-only';
 	badge.className = 'badge ' + (on ? 'on' : 'off');
 	badge.title = on
-		? 'Saving and wiping are possible. Every change is backed up and verified first.'
-		: 'Writing is off (ENABLE_TAG_WRITES=false or a read-only music folder). You can still edit drafts and check plans.';
+		? 'Saving and wiping are possible in ' + (library?.label || 'this library') + '. Every change is backed up and verified first.'
+		: !state.config.writes_enabled
+			? 'Writing is off (ENABLE_TAG_WRITES=false). You can still edit drafts and check plans.'
+			: 'The ' + (library?.label || '') + ' folder is mounted read-only (' + (state.library === 'videos' ? 'VIDEO' : 'MUSIC')
+				+ '_READ_ONLY=true). You can still edit drafts and check plans.';
 }
 
 /** The YouTube counter in the header: searches today / daily limit (the Data API allows
@@ -224,32 +279,59 @@ function confirmLeaveDrafts() {
 	return true;
 }
 
-async function browse(path) {
-	if (state.busy || state.writing || !confirmLeaveDrafts()) return;
+async function browse(path, library = state.library, quiet = false) {
+	if (state.busy || state.writing || !confirmLeaveDrafts()) return false;
 	setBusy(true);
 	try {
-		const data = await apiGet('/api/folders?path=' + encodeURIComponent(path));
+		const data = await apiGet('/api/folders?library=' + encodeURIComponent(library) + '&path=' + encodeURIComponent(path));
+		if (library !== state.library) stopPlayer();         // the paths of the other library mean something else
+		state.library = library;
 		state.path = data.path;
 		state.parent = data.parent;
 		setSongs([]);
 		state.listedPath = null;
+		drawLibraries();
+		showWriteBadge();
 		drawBreadcrumb();
 		$('folders').replaceChildren(...data.folders.map(f =>
 			el('button', {type: 'button', className: 'chip', title: f.path, onclick: () => browse(f.path)}, '📁 ' + f.name)));
 		if (!data.folders.length) $('folders').append(el('span', {className: 'muted'}, 'No sub-folders.'));
-		setStatus('Folder selected. Click List MP3 files.');
+		setStatus('Folder selected. Click List files.');
+		rememberLocation();
+		return true;
 	} catch (e) {
-		setStatus(e.message, 'error');
+		if (!quiet) setStatus(e.message, 'error');
+		return false;
 	} finally {
 		setBusy(false);
 	}
 }
 
+/** V2.3: this browser remembers the library, the folder and "Include subfolders". */
+function rememberLocation() {
+	store.set(LAST_LOCATION, {library: state.library, path: state.path, recursive: $('recursive').checked});
+}
+$('recursive').onchange = rememberLocation;
+
+/** V2.3: the 🎵 Music / 🎬 Videos switch above the folders. */
+function drawLibraries() {
+	const libraries = state.config.libraries || [{id: 'music', label: 'Music', available: true}];
+	$('libraries').replaceChildren(...libraries.map(l => el('button', {
+		type: 'button', className: 'lib-btn' + (l.id === state.library ? ' active' : ''),
+		disabled: !l.available, ariaPressed: String(l.id === state.library),
+		title: l.available ? 'Show the ' + l.label + ' folder' : l.label + ' is not mounted (set '
+			+ (l.id === 'videos' ? 'VIDEO_HOST_PATH' : 'MUSIC_HOST_PATH') + ' in .env and restart the container).',
+		dataset: {library: l.id, current: l.id === state.library ? '1' : '0'},
+		onclick: () => { if (l.id !== state.library) browse('', l.id); },
+	}, (LIBRARY_ICONS[l.id] || '📁') + ' ' + l.label)));
+}
+
 function drawBreadcrumb() {
 	const nav = $('breadcrumb');
 	const parts = state.path ? state.path.split('/') : [];
+	const label = (state.config.libraries || []).find(l => l.id === state.library)?.label || 'Music';
 	nav.replaceChildren(el('button', {type: 'button', className: 'crumb', onclick: () => browse(''),
-		dataset: {current: parts.length ? '0' : '1'}}, '🎵 Music'));
+		dataset: {current: parts.length ? '0' : '1'}}, (LIBRARY_ICONS[state.library] || '📁') + ' ' + label));
 	parts.forEach((name, i) => {
 		const target = parts.slice(0, i + 1).join('/');
 		nav.append(el('span', {className: 'sep'}, '›'),
@@ -263,14 +345,14 @@ async function listSongs() {
 	if (state.busy || state.writing || !confirmLeaveDrafts()) return;
 	setSongs([]);
 	setBusy(true);
-	setStatus('Reading the MP3 files…');
+	setStatus('Reading the files…');
 	try {
 		const recursive = $('recursive').checked;
-		const data = await apiGet('/api/scan?path=' + encodeURIComponent(state.path) + '&recursive=' + (recursive ? '1' : '0'));
+		const data = await apiGet('/api/scan?' + lib() + '&path=' + encodeURIComponent(state.path) + '&recursive=' + (recursive ? '1' : '0'));
 		state.listedPath = state.path;
 		setStatus('');
 		setSongs(data.songs);
-		if (!data.songs.length) setStatus('No MP3 files in this folder' + (recursive ? ' or its sub-folders.' : '. Tick Include subfolders to look deeper.'));
+		if (!data.songs.length) setStatus('No MP3 or MP4 files in this folder' + (recursive ? ' or its sub-folders.' : '. Tick Include subfolders to look deeper.'));
 		if (data.warnings.length) toast('Some folders could not be read: ' + data.warnings.join('; '), 'warn', 8000);
 	} catch (e) {
 		setStatus(e.message, 'error');
@@ -326,7 +408,13 @@ function filteredSongs() {
 		});
 	}
 	const key = state.sortKey;
-	const value = s => key === 'other' ? Number(s.other || 0) : key === 'cover' ? (s.cover ? 1 : 0) : show(s[key] ?? '');
+	const rgValue = (s, name) => {
+		const rg = s.rg;
+		const number = rg && (rg['track_' + name] ?? rg['album_' + name]);
+		return typeof number === 'number' ? number : -1e9;              // without ReplayGain: first (ascending)
+	};
+	const value = s => key === 'other' ? Number(s.other || 0) : key === 'cover' ? (s.cover ? 1 : 0)
+		: key === 'rg_gain' ? rgValue(s, 'gain') : key === 'rg_peak' ? rgValue(s, 'peak') : show(s[key] ?? '');
 	return [...list].sort((a, b) => {
 		const x = value(a), y = value(b);
 		const order = typeof x === 'number' ? x - y : x.localeCompare(y, undefined, {numeric: true, sensitivity: 'base'});
@@ -345,7 +433,7 @@ function cellContent(song, column, edits) {
 			return el('button', {type: 'button', className: 'play-btn', title: 'Listen to ' + song.filename,
 				ariaLabel: 'Listen to ' + song.filename}, '▶');
 		case 'cover': {
-			const source = dirty ? edits.cover : (song.cover ? '/api/thumbnail?path=' + encodeURIComponent(song.path)
+			const source = dirty ? edits.cover : (song.cover ? '/api/thumbnail?' + lib() + '&path=' + encodeURIComponent(song.path)
 				+ '&v=' + encodeURIComponent((song._source?.sha256 || '').slice(0, 12)) : '');
 			if (!source) return dirty ? el('span', {className: 'draft-note'}, '(removed)') : '—';
 			return el('img', {className: 'thumb', src: source, loading: 'lazy', alt: 'Cover', title: 'Show the cover',
@@ -359,6 +447,11 @@ function cellContent(song, column, edits) {
 		}
 		case 'other':
 			return song.other ? el('button', {type: 'button', className: 'link other-count', title: 'Show the other tags'}, String(song.other)) : '0';
+		case 'rg_gain':
+			if (!song.rg) return '—';
+			return el('button', {type: 'button', className: 'link rg-info', title: rgTip(song.rg)}, song.rg_gain || '🎚️');
+		case 'rg_peak':
+			return song.rg_peak || (song.rg ? '' : '—');
 		case 'lyrics':
 			if (dirty) return edits.lyrics ? (/\[\d+:\d+/.test(edits.lyrics) ? 'LRC (draft)' : 'Plain (draft)') : '(cleared)';
 			return song.lyrics || '—';
@@ -391,7 +484,8 @@ function render() {
 			td.append(content instanceof Node ? content : String(content));
 			if (typeof content === 'string' && content.length > 20) td.title = show(column.key === 'lyrics' ? '' : (edits[field] ?? song[column.key] ?? ''));
 			if (field && Object.hasOwn(edits, field)) td.classList.add('dirty');
-			if (field && EDITABLE.has(field) && column.key !== 'video') {
+			// V2.3: an MP4 file has no stored duration (TLEN): that cell cannot be edited
+			if (field && EDITABLE.has(field) && column.key !== 'video' && !(field === 'length' && song.kind === 'mp4')) {
 				td.dataset.field = field;
 				if (editing && !song.error) { td.tabIndex = 0; td.classList.add('editable'); }
 			}
@@ -404,7 +498,7 @@ function render() {
 	$('empty').hidden = state.songs.length > 0 && list.length > 0;
 	if (state.songs.length && !list.length) $('empty').textContent = 'No loaded song matches the filter.';
 	else if (!state.songs.length) $('empty').textContent = state.listedPath === null
-		? 'Choose a folder and click List MP3 files.' : 'No MP3 files here.';
+		? 'Choose a folder and click List files.' : 'No MP3 or MP4 files here.';
 	const shown = new Set(list.map(s => s.path));
 	const headerBox = $('headers').querySelector('input');
 	const shownSelected = list.filter(s => state.selected.has(s.path)).length;
@@ -429,7 +523,10 @@ function updateControls(shownCount) {
 	bar.replaceChildren();
 	if (songs) {
 		const shown = shownCount ?? $('rows').children.length;
-		bar.append(el('span', {className: 'pill'}, songs + ' MP3 file' + (songs === 1 ? '' : 's') + (shown !== songs ? ' · ' + shown + ' shown' : '')),
+		const mp4 = state.songs.filter(s => s.kind === 'mp4').length;
+		bar.append(el('span', {className: 'pill'}, songs + ' file' + (songs === 1 ? '' : 's')
+				+ (mp4 && mp4 !== songs ? ' (' + (songs - mp4) + ' MP3, ' + mp4 + ' MP4)' : mp4 ? ' (MP4)' : '')
+				+ (shown !== songs ? ' · ' + shown + ' shown' : '')),
 			el('span', {className: 'pill' + (selected ? ' accent' : '')}, selected + ' selected'),
 			el('span', {className: 'pill' + (state.drafts.size ? ' warn' : '')}, state.drafts.size + ' with drafts'));
 		if (errors) bar.append(el('span', {className: 'pill error'}, errors + ' read error' + (errors === 1 ? '' : 's')));
@@ -444,6 +541,10 @@ function updateControls(shownCount) {
 	for (const id of ['scan', 'recursive']) $(id).disabled = blocked;
 	$('up').disabled = blocked || state.parent === null;
 	document.querySelectorAll('#folders button, #breadcrumb button').forEach(b => { b.disabled = blocked || b.dataset.current === '1'; });
+	document.querySelectorAll('#libraries button').forEach(b => {
+		const info = (state.config.libraries || []).find(l => l.id === b.dataset.library);
+		b.disabled = blocked || (info && !info.available);
+	});
 	document.querySelectorAll('#rows .video-check').forEach(b => { b.disabled = blocked || !$('edit-toggle').checked; });
 }
 
@@ -482,6 +583,7 @@ $('rows').addEventListener('click', event => {
 	if (event.target.closest('.filename')) showDetails(song);
 	else if (event.target.closest('.play-btn')) playSong(song);
 	else if (event.target.closest('.other-count')) showDetails(song, 'other');
+	else if (event.target.closest('.rg-info')) showDetails(song, 'replaygain');
 	else if (event.target.classList.contains('thumb')) openEditor(song, 'cover', !$('edit-toggle').checked);
 });
 $('rows').addEventListener('dblclick', event => {
@@ -517,7 +619,7 @@ function playSong(song) {
 		return;
 	}
 	state.playing = song.path;
-	audio.src = '/api/audio?path=' + encodeURIComponent(song.path) + '&v=' + encodeURIComponent((song._source?.sha256 || '').slice(0, 12));
+	audio.src = '/api/audio?' + lib() + '&path=' + encodeURIComponent(song.path) + '&v=' + encodeURIComponent((song._source?.sha256 || '').slice(0, 12));
 	$('player-title').textContent = [show(song.artist), show(song.title)].filter(Boolean).join(' — ') || song.filename;
 	$('player-title').title = song.path;
 	$('player').hidden = false;
@@ -626,7 +728,7 @@ function openEditor(song, field, preview) {
 	const hasDraft = Object.hasOwn(edits, field);
 
 	if (field === 'cover') {
-		const src = hasDraft ? edits.cover : (song.cover ? '/api/cover?path=' + encodeURIComponent(song.path) : '');
+		const src = hasDraft ? edits.cover : (song.cover ? '/api/cover?' + lib() + '&path=' + encodeURIComponent(song.path) : '');
 		editor.image = el('img', {className: 'cover-preview', alt: 'Cover'});
 		const empty = el('div', {className: 'cover-empty'}, hasDraft ? 'The cover will be removed.' : 'No embedded cover.');
 		if (src) editor.image.src = src; else editor.image.hidden = true;
@@ -665,6 +767,10 @@ function openEditor(song, field, preview) {
 			year: 'Four digits, or empty.', track: 'A number, or number/total (6/12).', bpm: 'A number.',
 			tvshow: 'A YouTube link (https://www.youtube.com/watch?v=…) or a video file name.',
 		};
+		if (song.kind === 'mp4') {
+			notes.bpm = 'A whole number (an MP4 file stores BPM without decimals).';
+			notes.tvshow = 'A YouTube link or a video file name (stored in the MP4 "tvsh" atom).';
+		}
 		if (notes[field]) body.append(el('p', {className: 'muted'}, notes[field]));
 		if (!multiline) input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('editor-ok').click(); } });
 		setTimeout(() => input.focus(), 30);
@@ -832,7 +938,7 @@ $('lookup-run').onclick = async () => {
 		const name = providers.find(p => p[0] === id)[1];
 		const column = columns.get(id);
 		try {
-			const data = await apiPost('/api/lookup', {path: editor.song.path, field: editor.field, provider: id, metadata});
+			const data = await apiPost('/api/lookup', {library: state.library, path: editor.song.path, field: editor.field, provider: id, metadata});
 			if (data.quota) showYoutubeQuota(data.quota, true);
 			if (!alive()) return;
 			column.replaceChildren(el('h4', null, name));
@@ -935,7 +1041,7 @@ async function prepare(action) {
 	try {
 		const fields = [...state.wipeFields];
 		const items = targets.map(s => ({path: s.path, source: s._source, values: state.drafts.get(s.path) || {}}));
-		const plan = await apiPost('/api/write/prepare', {action, fields, items});
+		const plan = await apiPost('/api/write/prepare', {action, fields, items, library: state.library});
 		state.plan = plan;
 		showPlan(plan);
 		setStatus('');
@@ -954,7 +1060,7 @@ function valueView(field, value, path) {
 			return draft ? el('img', {className: 'thumb', src: draft, alt: 'New cover'}) : 'New picture (' + value.jpeg_bytes + ' bytes)';
 		}
 		if (Array.isArray(value)) return value.length ? el('img', {className: 'thumb', alt: 'Current cover',
-			src: '/api/thumbnail?path=' + encodeURIComponent(path)}) : '—';
+			src: '/api/thumbnail?' + lib() + '&path=' + encodeURIComponent(path)}) : '—';
 		return value === '' ? el('em', null, 'removed') : String(value);
 	}
 	if (Array.isArray(value)) value = value.join(' | ');
@@ -967,7 +1073,7 @@ function showPlan(plan) {
 	$('confirm-title').textContent = (wipe ? 'Wipe tags of ' : 'Save tags of ') + plan.items.length + ' song' + (plan.items.length === 1 ? '' : 's');
 	$('confirm-warning').textContent = plan.enabled
 		? 'Each original is backed up and verified before it is replaced. Only the changes below are written.'
-		: 'Writing is off (read-only). You can check this plan, but not write it.';
+		: (plan.read_only_reason || 'Writing is off (read-only).') + ' You can check this plan, but not write it.';
 	$('confirm-warning').className = 'notice' + (plan.enabled ? '' : ' warn');
 	const box = $('confirm-summary');
 	box.replaceChildren();
@@ -980,6 +1086,9 @@ function showPlan(plan) {
 			card.append(el('p', null, el('b', null, 'Removes: '), frames.length ? frames.join(', ') : 'nothing (these fields are empty)',
 				item.changes.remove_unknown_frames ? ' + ' + item.changes.remove_unknown_frames + ' unknown frame(s)' : ''),
 				el('p', {className: 'muted'}, 'Protected: ' + item.changes.protected_fields.map(f => FIELD_LABELS[f] || f).join(', ')));
+			// V2.3: the ReplayGain / mp3rgain values stay in the file
+			if (item.changes.kept_replaygain?.length) card.append(el('p', {className: 'kept-rg'},
+				'🎚️ Kept (ReplayGain, never wiped): ' + item.changes.kept_replaygain.join(', ')));
 		} else {
 			const table = el('table', {className: 'changes'}, el('tr', null, el('th', null, 'Field'), el('th', null, 'Now in the file'), el('th', null, 'New')));
 			for (const [field, change] of Object.entries(item.changes.edited_fields)) {
@@ -1059,7 +1168,7 @@ async function watchJob(total) {
 		// saved songs: drafts are gone, and they are deselected (they were selected because of the drafts)
 		if (status.action === 'save') saved.forEach(p => { state.drafts.delete(p); state.selected.delete(p); });
 		if (saved.length) {
-			const fresh = await apiPost('/api/songs', {paths: saved});
+			const fresh = await apiPost('/api/songs', {paths: saved, library: status.library || state.library});
 			for (const row of fresh.songs) {
 				const index = state.songs.findIndex(s => s.path === row.path);
 				if (index >= 0) state.songs[index] = row;
@@ -1106,6 +1215,37 @@ function keyValueTable(rows) {
 	}));
 }
 
+/** V2.3: a short text about the ReplayGain values of a file (tooltip of the RG gain cell). */
+function rgTip(rg) {
+	const db = n => (n > 0 ? '+' : '') + n.toFixed(2) + ' dB';
+	const parts = [];
+	if (rg.track_gain !== null) parts.push('Track gain ' + db(rg.track_gain) + (rg.track_peak !== null ? ', peak ' + rg.track_peak : ''));
+	if (rg.album_gain !== null) parts.push('Album gain ' + db(rg.album_gain) + (rg.album_peak !== null ? ', peak ' + rg.album_peak : ''));
+	parts.push(rg.applied ? 'mp3rgain changed the volume inside the file (undo ' + rg.undo + '); the gain is the small rest.'
+		: 'Only tags: the volume inside the file was not changed (a player that reads ReplayGain applies the gain).');
+	return parts.join('\n') + '\nRead only, never wiped. Click for all values.';
+}
+
+function replayGainSection(song) {
+	const rg = song.rg;
+	const section = el('div', {className: 'rg-section'}, el('h3', null, '🎚️ ReplayGain (read only)'));
+	if (!rg) {
+		section.append(el('p', {className: 'muted'}, 'No ReplayGain values in this file (not normalised with mp3rgain).'));
+		return section;
+	}
+	const db = n => n === null ? '—' : (n > 0 ? '+' : '') + n.toFixed(6).replace(/0+$/, '').replace(/\.$/, '') + ' dB';
+	section.append(keyValueTable([
+		['Track gain', db(rg.track_gain)], ['Track peak', rg.track_peak ?? '—'],
+		['Album gain', db(rg.album_gain)], ['Album peak', rg.album_peak ?? '—'],
+		['Algorithm', rg.algorithm || '— (ReplayGain 1.0)'],
+		['Volume in the file', rg.applied ? 'Changed by mp3rgain (lossless). Undo value ' + rg.undo + ' (mp3rgain -u puts the original volume back).'
+			: 'Not changed (tags only): a player that reads ReplayGain applies the gain.'],
+	]), el('p', {className: 'muted'}, 'Stored values (where · name · value). Save and Wipe tags never remove or change them.'),
+	el('table', {className: 'kv'}, ...rg.values.map(([place, name, value]) =>
+		el('tr', null, el('th', null, place), el('td', null, el('code', null, name)), el('td', null, show(value))))));
+	return section;
+}
+
 function showDetails(song, focus) {
 	const nodes = [];
 	nodes.push(el('h3', null, 'File'), keyValueTable([
@@ -1115,15 +1255,21 @@ function showDetails(song, focus) {
 	if (drafts) nodes.push(el('h3', null, 'Unsaved drafts'), keyValueTable(Object.entries(drafts).map(([f, v]) =>
 		[FIELD_LABELS[f] || f, f === 'cover' ? (v ? 'new picture' : 'removed') : (v === '' ? '(cleared)' : v)])));
 	const tagRows = Object.entries(song.all_tags || {});
-	nodes.push(el('h3', null, 'All ID3 tags (' + tagRows.length + ')'), tagRows.length ? keyValueTable(tagRows) : el('p', {className: 'muted'}, 'No ID3v2 tags.'));
+	const mp4 = song.kind === 'mp4';
+	nodes.push(el('h3', null, (mp4 ? 'All MP4 tags (' : 'All ID3 tags (') + tagRows.length + ')'),
+		tagRows.length ? keyValueTable(tagRows) : el('p', {className: 'muted'}, mp4 ? 'No MP4 tags.' : 'No ID3v2 tags.'));
+	const rgSection = replayGainSection(song);
+	nodes.push(rgSection);
 	const other = song.other_info || {keys: [], unknown_frames: 0};
 	const otherSection = el('div', null, el('h3', null, 'Other tags (' + (song.other || 0) + ')'),
-		el('p', {className: 'muted'}, 'ID3 frames without a column. "Wipe tags" with Other tags ticked removes these.'),
+		el('p', {className: 'muted'}, (mp4 ? 'MP4 atoms' : 'ID3 frames') + ' without a column. "Wipe tags" with Other tags ticked removes these '
+			+ '(never the ReplayGain values).'),
 		other.keys.length ? el('ul', null, ...other.keys.map(k => el('li', null, el('code', null, k), ' ', shorten(song.all_tags?.[k] ?? '', 120)))) : '',
 		other.unknown_frames ? el('p', null, other.unknown_frames + ' unknown frame(s) that mutagen cannot read.') : '');
 	nodes.push(otherSection);
-	openInfo(song.filename, nodes, {name: song.filename.replace(/\.mp3$/i, '') + '-tags.json', data: song});
+	openInfo(song.filename, nodes, {name: song.filename.replace(/\.(mp3|mp4|m4a|m4v)$/i, '') + '-tags.json', data: song});
 	if (focus === 'other') otherSection.scrollIntoView({block: 'start'});
+	if (focus === 'replaygain') rgSection.scrollIntoView({block: 'start'});
 }
 
 async function showReport() {
@@ -1149,7 +1295,7 @@ $('report-btn').onclick = showReport;
 
 $('export').onclick = () => download('jstal-tagger-selection.json', {
 	app: 'jstal-tagger', version: state.config.version, exported: new Date().toISOString(),
-	folder: state.listedPath, songs: selectedSongs(),
+	library: state.library, folder: state.listedPath, songs: selectedSongs(),
 });
 
 function drawColumnChoices() {
@@ -1185,7 +1331,21 @@ $('columns-close').onclick = () => $('columns-dialog').close();
 	showYoutubeQuota(state.config.youtube_quota);
 	// V2.1: start in edit mode (EDIT_MODE_DEFAULT in .env). Editing only makes drafts.
 	$('edit-toggle').checked = state.config.edit_mode_default !== false;
-	await browse('');
+	// V2.3: open the library and folder of the last visit (this browser); when that folder is
+	// gone (or Videos is no longer mounted) fall back to the top of that library or of Music.
+	const last = store.get(LAST_LOCATION, null);
+	const libraries = state.config.libraries || [];
+	let opened = false;
+	if (last && typeof last.path === 'string' && libraries.some(l => l.id === last.library && l.available)) {
+		$('recursive').checked = Boolean(last.recursive);
+		opened = await browse(last.path, last.library, true);
+		if (!opened) opened = await browse('', last.library, true);
+		if (opened && (state.path || state.library !== 'music')) {
+			setStatus('Last folder opened again (' + ((libraries.find(l => l.id === state.library) || {}).label || '')
+				+ (state.path ? ' › ' + state.path : '') + '). Click List files.');
+		}
+	}
+	if (!opened) await browse('', libraries.find(l => l.available)?.id || 'music');
 	try {
 		const status = await apiGet('/api/write/status');
 		if (status.state === 'running') watchJob(status.total);

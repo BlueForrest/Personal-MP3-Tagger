@@ -1,6 +1,6 @@
 """
 ==================================================================================
-jstal-tagger - online lookups for the tag editor (lookups.py)                 V2.1
+jstal-tagger - online lookups for the tag editor (lookups.py)                 V2.3
 ==================================================================================
 
 The "Lookup Data" part of the tag editor asks these sources for a value of one field:
@@ -122,7 +122,7 @@ def get_json(url, params=None):
     """GET JSON (MusicBrainz, Cover Art Archive, Wikipedia, Wikidata). MusicBrainz requests
     are spaced 1.1 s apart; busy servers are retried twice. 404 -> None."""
     global _mb_last
-    headers = {'User-Agent': user_agent() or 'jstal-tagger/2.1 (metadata lookup)'}
+    headers = {'User-Agent': user_agent() or 'jstal-tagger/2.3 (metadata lookup)'}
     for attempt in range(3):
         if 'musicbrainz.org/ws/' in url:
             with _mb_lock:
@@ -166,7 +166,7 @@ def lookup_musicbrainz(meta, duration, include_cover=True):
     if not data.get('recordings') and clean_title and clean_title != original_title:
         data = search_recordings(clean_title)
         result['warnings'].append('MusicBrainz search retried without the trailing year: ' + repr(clean_title)
-                                  + '. The MP3 title is not changed.')
+                                  + '. The title in the file is not changed.')
     candidates = []
     for rec in data.get('recordings', []):
         artist = artist_name(rec)
